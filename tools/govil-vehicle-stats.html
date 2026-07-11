@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>סקודה אוקטביה RS וקופרה פורמנטור על הכביש — נתוני משרד התחבורה</title>
+<title>סקודה אוקטביה וקופרה פורמנטור על הכביש — נתוני משרד התחבורה</title>
 <style>
   :root {
     --surface-1: #fcfcfb;
@@ -99,7 +99,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>סקודה אוקטביה RS וקופרה פורמנטור — כמה יש על הכביש?</h1>
+  <h1>סקודה אוקטביה וקופרה פורמנטור — כמה יש על הכביש?</h1>
   <p class="sub">הנתונים נמשכים ישירות מהמאגר הפתוח של משרד התחבורה (כלי רכב פרטיים ומסחריים פעילים) ב־data.gov.il, בזמן אמת מהדפדפן שלך.</p>
 
   <div class="toolbar">
@@ -109,24 +109,24 @@
   <div id="status"></div>
 
   <div class="cards" id="tiles" hidden>
-    <div class="tile"><div class="label">סקודה אוקטביה RS</div><div class="value" id="tile-rs">—</div></div>
+    <div class="tile"><div class="label">סקודה אוקטביה (כל הדגמים)</div><div class="value" id="tile-oct">—</div></div>
     <div class="tile"><div class="label">קופרה פורמנטור</div><div class="value" id="tile-fm">—</div></div>
   </div>
 
-  <section class="model" id="sec-rs" hidden>
-    <h2>סקודה אוקטביה RS</h2>
-    <p class="note" id="note-rs"></p>
+  <section class="model" id="sec-oct" hidden>
+    <h2>סקודה אוקטביה — כל הדגמים</h2>
+    <p class="note" id="note-oct"></p>
     <div class="charts">
       <div>
         <p class="chart-title">התפלגות לפי רמת גימור</p>
-        <div class="donut-box"><div id="donut-rs"></div><ul class="legend" id="legend-rs"></ul></div>
+        <div class="donut-box"><div id="donut-oct"></div><ul class="legend" id="legend-oct"></ul></div>
       </div>
       <div>
         <p class="chart-title">התפלגות לפי שנתון</p>
-        <div id="bars-rs"></div>
+        <div id="bars-oct"></div>
       </div>
     </div>
-    <details><summary>הצגת הנתונים כטבלה</summary><div id="table-rs"></div></details>
+    <details><summary>הצגת הנתונים כטבלה</summary><div id="table-oct"></div></details>
   </section>
 
   <section class="model" id="sec-fm" hidden>
@@ -161,7 +161,7 @@ const CAT = ['--series-1','--series-2','--series-3','--series-4','--series-5','-
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const fmt = n => n.toLocaleString('he-IL');
 
-const state = { rs: null, fm: null };
+const state = { oct: null, fm: null };
 
 // ---------- data fetching ----------
 
@@ -183,12 +183,7 @@ async function fetchAllRecords(q, onProgress) {
 
 const norm = v => String(v == null ? '' : v).trim().toUpperCase();
 
-// Octavia vRS: the trim (ramat_gimur) carries "RS", or the model code (degem_nm) ends with RS
-function isOctaviaRS(r) {
-  const kinuy = norm(r.kinuy_mishari), gimur = norm(r.ramat_gimur), degem = norm(r.degem_nm);
-  if (!kinuy.includes('OCTAVIA')) return false;
-  return /(^|[^A-Z])RS([^A-Z]|$)/.test(gimur) || /RS$/.test(degem) || /(^|[^A-Z])RS([^A-Z]|$)/.test(kinuy);
-}
+const isOctavia = r => norm(r.kinuy_mishari).includes('OCTAVIA');
 const isFormentor = r => norm(r.kinuy_mishari).includes('FORMENTOR');
 
 function aggregate(records) {
@@ -318,7 +313,7 @@ function renderTable(mountId, agg) {
 }
 
 function renderModel(key, agg, noteText) {
-  const suffix = key === 'rs' ? 'rs' : 'fm';
+  const suffix = key;
   document.getElementById('sec-' + suffix).hidden = false;
   document.getElementById('note-' + suffix).textContent = noteText;
   document.getElementById('tile-' + suffix).textContent = fmt(agg.total);
@@ -342,7 +337,7 @@ function sheet(name, header, rows) {
 }
 
 function buildExcel() {
-  const { rs, fm } = state;
+  const { oct, fm } = state;
   const cross = agg => {
     const m = new Map();
     for (const r of agg.records) {
@@ -357,12 +352,12 @@ function buildExcel() {
   };
   const sheets = [
     sheet('סיכום', ['דגם', 'סה"כ על הכביש'], [
-      ['סקודה אוקטביה RS', rs.agg.total],
+      ['סקודה אוקטביה (כל הדגמים)', oct.agg.total],
       ['קופרה פורמנטור', fm.agg.total],
     ]),
-    sheet('אוקטביה RS - שנתון', ['שנתון', 'כמות'], rs.agg.years.map(([y, c]) => [y, c])),
-    sheet('אוקטביה RS - גימור', ['רמת גימור', 'כמות'], rs.agg.trims.map(([t, c]) => [t, c])),
-    sheet('אוקטביה RS - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(rs)),
+    sheet('אוקטביה - שנתון', ['שנתון', 'כמות'], oct.agg.years.map(([y, c]) => [y, c])),
+    sheet('אוקטביה - גימור', ['רמת גימור', 'כמות'], oct.agg.trims.map(([t, c]) => [t, c])),
+    sheet('אוקטביה - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(oct)),
     sheet('פורמנטור - שנתון', ['שנתון', 'כמות'], fm.agg.years.map(([y, c]) => [y, c])),
     sheet('פורמנטור - גימור', ['רמת גימור', 'כמות'], fm.agg.trims.map(([t, c]) => [t, c])),
     sheet('פורמנטור - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(fm)),
@@ -377,7 +372,7 @@ ${sheets.join('\n')}
   const blob = new Blob(['﻿' + xml], { type: 'application/vnd.ms-excel' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'octavia-rs-formentor-govil.xls';
+  a.download = 'octavia-formentor-govil.xls';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -401,18 +396,17 @@ async function run() {
       fmRecords = await fetchAllRecords('FORMENTOR', prog);
     }
 
-    const rsRecords = octRecords.filter(isOctaviaRS);
+    const octavia = octRecords.filter(isOctavia);
     const formentor = fmRecords.filter(isFormentor);
-    state.rs = { records: rsRecords, agg: { ...aggregate(rsRecords), records: rsRecords } };
+    state.oct = { records: octavia, agg: { ...aggregate(octavia), records: octavia } };
     state.fm = { records: formentor, agg: { ...aggregate(formentor), records: formentor } };
 
     document.getElementById('tiles').hidden = false;
-    renderModel('rs', state.rs.agg,
-      `זוהו מתוך ${fmt(octRecords.length)} רשומות אוקטביה לפי סימון RS ברמת הגימור או בקוד הדגם.`);
+    renderModel('oct', state.oct.agg, `כל רכבי האוקטביה הפעילים במאגר, בכל רמות הגימור (כולל RS).`);
     renderModel('fm', state.fm.agg, `כל רכבי הפורמנטור הפעילים במאגר.`);
     document.getElementById('btn-excel').disabled = false;
     document.getElementById('ts').textContent = 'נמשך: ' + new Date().toLocaleString('he-IL');
-    setStatus(`הושלם — אוקטביה RS: ${fmt(state.rs.agg.total)} | פורמנטור: ${fmt(state.fm.agg.total)}`);
+    setStatus(`הושלם — אוקטביה: ${fmt(state.oct.agg.total)} | פורמנטור: ${fmt(state.fm.agg.total)}`);
   } catch (err) {
     setStatus('שגיאה במשיכת הנתונים: ' + err.message +
       ' — ודא/י שאת/ה מחובר/ת מרשת ישראלית (gov.il חוסם גישה מחו"ל) ונסה/י שוב.', true);
@@ -428,7 +422,11 @@ function demoData() {
   for (let y = 2014; y <= 2026; y++) {
     const nRS = Math.round(40 + rnd() * 420);
     for (let i = 0; i < nRS; i++) octRecords.push(mk('OCTAVIA', rnd() < 0.8 ? 'RS' : 'RS 245', y));
-    for (let i = 0; i < 300; i++) octRecords.push(mk('OCTAVIA', 'AMBITION', y));
+    const trims = [['AMBITION', 900], ['STYLE', 600], ['ELEGANCE', 350], ['ACTIVE', 200], ['SPORTLINE', 120], ['SELECTION', 80]];
+    for (const [t, base] of trims) {
+      const n = Math.round(base * (0.5 + rnd()));
+      for (let i = 0; i < n; i++) octRecords.push(mk('OCTAVIA', t, y));
+    }
   }
   for (let y = 2021; y <= 2026; y++) {
     const trims = [['VZ', 0.4], ['V', 0.3], ['VZ EDITION', 0.15], ['TRIBE', 0.15]];
