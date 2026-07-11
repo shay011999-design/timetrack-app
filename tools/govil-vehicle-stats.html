@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>סקודה אוקטביה RS וקופרה פורמנטור על הכביש — נתוני משרד התחבורה</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; /* blue */
+    --series-2: #1baf7a; /* aqua */
+    --series-3: #eda100; /* yellow */
+    --series-4: #008300; /* green */
+    --series-5: #4a3aa7; /* violet */
+    --series-6: #e34948; /* red */
+    --series-7: #e87ba4; /* magenta */
+    --series-8: #eb6834; /* orange */
+    --other: #898781;
+    --seq: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --series-2: #199e70;
+      --series-3: #c98500;
+      --series-4: #008300;
+      --series-5: #9085e9;
+      --series-6: #e66767;
+      --series-7: #d55181;
+      --series-8: #d95926;
+      --seq: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 20px; }
+  .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  button {
+    font: inherit; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--series-1); color: #fff; font-weight: 600;
+  }
+  button.secondary { background: var(--surface-1); color: var(--text-primary); }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { font-size: 13px; color: var(--text-secondary); min-height: 20px; margin-bottom: 16px; }
+  #status.error { color: #d03b3b; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 8px 0 24px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  }
+  .tile .label { font-size: 13px; color: var(--text-secondary); }
+  .tile .value { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; }
+  section.model { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px 8px; margin-bottom: 24px; }
+  section.model h2 { font-size: 17px; margin: 0 0 2px; }
+  section.model .note { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+  .charts { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 0 0 8px; }
+  .donut-box { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .legend { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .legend li { display: flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--text-primary); }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .legend .pct { color: var(--text-secondary); }
+  details { margin: 10px 0 14px; }
+  summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
+  table.data { border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.data th, table.data td { border: 1px solid var(--grid); padding: 4px 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  table.data th { background: var(--page); font-weight: 600; }
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    direction: rtl;
+  }
+  .src { font-size: 12px; color: var(--muted); margin-top: 24px; }
+  svg text { fill: var(--muted); font-family: inherit; }
+  svg .val { fill: var(--text-secondary); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>סקודה אוקטביה RS וקופרה פורמנטור — כמה יש על הכביש?</h1>
+  <p class="sub">הנתונים נמשכים ישירות מהמאגר הפתוח של משרד התחבורה (כלי רכב פרטיים ומסחריים פעילים) ב־data.gov.il, בזמן אמת מהדפדפן שלך.</p>
+
+  <div class="toolbar">
+    <button id="btn-fetch">משיכת נתונים מ־gov.il</button>
+    <button id="btn-excel" class="secondary" disabled>⬇ הורדה לאקסל</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="cards" id="tiles" hidden>
+    <div class="tile"><div class="label">סקודה אוקטביה RS</div><div class="value" id="tile-rs">—</div></div>
+    <div class="tile"><div class="label">קופרה פורמנטור</div><div class="value" id="tile-fm">—</div></div>
+  </div>
+
+  <section class="model" id="sec-rs" hidden>
+    <h2>סקודה אוקטביה RS</h2>
+    <p class="note" id="note-rs"></p>
+    <div class="charts">
+      <div>
+        <p class="chart-title">התפלגות לפי רמת גימור</p>
+        <div class="donut-box"><div id="donut-rs"></div><ul class="legend" id="legend-rs"></ul></div>
+      </div>
+      <div>
+        <p class="chart-title">התפלגות לפי שנתון</p>
+        <div id="bars-rs"></div>
+      </div>
+    </div>
+    <details><summary>הצגת הנתונים כטבלה</summary><div id="table-rs"></div></details>
+  </section>
+
+  <section class="model" id="sec-fm" hidden>
+    <h2>קופרה פורמנטור</h2>
+    <p class="note" id="note-fm"></p>
+    <div class="charts">
+      <div>
+        <p class="chart-title">התפלגות לפי רמת גימור</p>
+        <div class="donut-box"><div id="donut-fm"></div><ul class="legend" id="legend-fm"></ul></div>
+      </div>
+      <div>
+        <p class="chart-title">התפלגות לפי שנתון</p>
+        <div id="bars-fm"></div>
+      </div>
+    </div>
+    <details><summary>הצגת הנתונים כטבלה</summary><div id="table-fm"></div></details>
+  </section>
+
+  <p class="src">מקור: מאגר "כלי רכב פרטיים ומסחריים" (רכבים פעילים בלבד), משרד התחבורה, data.gov.il. <span id="ts"></span></p>
+</div>
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+
+const API = 'https://data.gov.il/api/3/action/datastore_search';
+const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+const FIELDS = 'kinuy_mishari,ramat_gimur,shnat_yitzur,degem_nm,tozeret_nm';
+const PAGE = 32000;
+
+const CAT = ['--series-1','--series-2','--series-3','--series-4','--series-5','--series-6','--series-7'];
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = n => n.toLocaleString('he-IL');
+
+const state = { rs: null, fm: null };
+
+// ---------- data fetching ----------
+
+async function fetchAllRecords(q, onProgress) {
+  let records = [], offset = 0, total = Infinity;
+  while (offset < total && offset < PAGE * 12) {
+    const url = `${API}?resource_id=${RESOURCE_ID}&q=${encodeURIComponent(q)}&fields=${encodeURIComponent(FIELDS)}&limit=${PAGE}&offset=${offset}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} מהשרת של data.gov.il`);
+    const json = await res.json();
+    if (!json.success) throw new Error('ה־API החזיר שגיאה');
+    total = json.result.total;
+    records = records.concat(json.result.records);
+    offset += PAGE;
+    onProgress && onProgress(Math.min(records.length, total), total, q);
+  }
+  return records;
+}
+
+const norm = v => String(v == null ? '' : v).trim().toUpperCase();
+
+// Octavia vRS: the trim (ramat_gimur) carries "RS", or the model code (degem_nm) ends with RS
+function isOctaviaRS(r) {
+  const kinuy = norm(r.kinuy_mishari), gimur = norm(r.ramat_gimur), degem = norm(r.degem_nm);
+  if (!kinuy.includes('OCTAVIA')) return false;
+  return /(^|[^A-Z])RS([^A-Z]|$)/.test(gimur) || /RS$/.test(degem) || /(^|[^A-Z])RS([^A-Z]|$)/.test(kinuy);
+}
+const isFormentor = r => norm(r.kinuy_mishari).includes('FORMENTOR');
+
+function aggregate(records) {
+  const byYear = new Map(), byTrim = new Map();
+  for (const r of records) {
+    const y = String(r.shnat_yitzur || 'לא ידוע');
+    const t = String(r.ramat_gimur || '').trim() || 'לא צוין';
+    byYear.set(y, (byYear.get(y) || 0) + 1);
+    byTrim.set(t, (byTrim.get(t) || 0) + 1);
+  }
+  return {
+    total: records.length,
+    years: [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true })),
+    trims: [...byTrim.entries()].sort((a, b) => b[1] - a[1]),
+  };
+}
+
+// ---------- charts ----------
+
+const tooltip = document.getElementById('tooltip');
+function showTip(evt, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+  const pad = 14;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  const r = tooltip.getBoundingClientRect();
+  if (x + r.width > innerWidth - 8) x = evt.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = evt.clientY - r.height - pad;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTip() { tooltip.style.display = 'none'; }
+
+// donut: top 6 trims + "Other", fixed categorical order, 2px surface gap between segments
+function renderDonut(mountId, legendId, trims, total) {
+  const MAXSLICES = 6;
+  const slices = trims.slice(0, MAXSLICES).map(([name, count], i) => ({ name, count, color: cssVar(CAT[i]) }));
+  const rest = trims.slice(MAXSLICES).reduce((s, [, c]) => s + c, 0);
+  if (rest > 0) slices.push({ name: 'אחר', count: rest, color: cssVar('--other') });
+
+  const size = 190, cx = size / 2, cy = size / 2, R = 86, rIn = 52;
+  let a0 = -Math.PI / 2;
+  const surface = cssVar('--surface-1');
+  const paths = slices.map(s => {
+    const frac = s.count / total;
+    const a1 = a0 + frac * Math.PI * 2;
+    const large = (a1 - a0) > Math.PI ? 1 : 0;
+    const p = (a, r) => `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
+    const d = `M ${p(a0, R)} A ${R} ${R} 0 ${large} 1 ${p(a1, R)} L ${p(a1, rIn)} A ${rIn} ${rIn} 0 ${large} 0 ${p(a0, rIn)} Z`;
+    a0 = a1;
+    return { ...s, d, frac };
+  });
+
+  const svgParts = paths.map((s, i) =>
+    `<path d="${s.d}" fill="${s.color}" stroke="${surface}" stroke-width="2" data-i="${i}"></path>`);
+  const mount = document.getElementById(mountId);
+  mount.innerHTML =
+    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="התפלגות לפי רמת גימור">
+       ${svgParts.join('')}
+       <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="20" font-weight="700" class="val">${fmt(total)}</text>
+       <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-size="11">סה״כ</text>
+     </svg>`;
+
+  mount.querySelectorAll('path').forEach(el => {
+    const s = paths[+el.dataset.i];
+    el.addEventListener('mousemove', e => showTip(e,
+      `<b>${s.name}</b><br>${fmt(s.count)} רכבים (${(s.frac * 100).toFixed(1)}%)`));
+    el.addEventListener('mouseleave', hideTip);
+  });
+
+  document.getElementById(legendId).innerHTML = paths.map(s =>
+    `<li><span class="swatch" style="background:${s.color}"></span>${s.name}
+       <span class="pct">— ${fmt(s.count)} (${(s.frac * 100).toFixed(1)}%)</span></li>`).join('');
+}
+
+// column chart by year: single sequential hue (magnitude on height), hover tooltips
+function renderBars(mountId, years) {
+  const W = 560, H = 220, mL = 8, mR = 8, mT = 18, mB = 26;
+  const iw = W - mL - mR, ih = H - mT - mB;
+  const max = Math.max(...years.map(([, c]) => c), 1);
+  const n = years.length;
+  const step = iw / n;
+  const bw = Math.min(Math.max(step - 2, 3), 46);
+  const color = cssVar('--seq');
+  const grid = cssVar('--grid'), baseline = cssVar('--baseline');
+
+  const gridLines = [0.25, 0.5, 0.75, 1].map(f => {
+    const y = mT + ih - f * ih;
+    return `<line x1="${mL}" x2="${W - mR}" y1="${y}" y2="${y}" stroke="${grid}" stroke-width="1"></line>`;
+  }).join('');
+
+  const bars = years.map(([year, count], i) => {
+    const h = Math.max(count / max * ih, count > 0 ? 2 : 0);
+    const x = mL + i * step + (step - bw) / 2;
+    const y = mT + ih - h;
+    const label = n <= 16 ? `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11">${year}</text>` : '';
+    const maxLabel = count === max ? `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="11" class="val">${fmt(count)}</text>` : '';
+    return `<g data-i="${i}">
+      <rect x="${x - 2}" y="${mT}" width="${bw + 4}" height="${ih}" fill="transparent"></rect>
+      <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="3" fill="${color}"></rect>
+      ${label}${maxLabel}
+    </g>`;
+  }).join('');
+
+  const mount = document.getElementById(mountId);
+  mount.innerHTML =
+    `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="התפלגות לפי שנתון" style="direction:ltr">
+       ${gridLines}${bars}
+       <line x1="${mL}" x2="${W - mR}" y1="${mT + ih}" y2="${mT + ih}" stroke="${baseline}" stroke-width="1"></line>
+     </svg>`;
+
+  mount.querySelectorAll('g[data-i]').forEach(el => {
+    const [year, count] = years[+el.dataset.i];
+    el.addEventListener('mousemove', e => showTip(e, `<b>שנתון ${year}</b><br>${fmt(count)} רכבים`));
+    el.addEventListener('mouseleave', hideTip);
+  });
+}
+
+function renderTable(mountId, agg) {
+  const rowsY = agg.years.map(([y, c]) => `<tr><td>${y}</td><td>${fmt(c)}</td></tr>`).join('');
+  const rowsT = agg.trims.map(([t, c]) => `<tr><td>${t}</td><td>${fmt(c)}</td></tr>`).join('');
+  document.getElementById(mountId).innerHTML =
+    `<div style="display:flex;gap:32px;flex-wrap:wrap">
+       <table class="data"><thead><tr><th>שנתון</th><th>כמות</th></tr></thead><tbody>${rowsY}</tbody></table>
+       <table class="data"><thead><tr><th>רמת גימור</th><th>כמות</th></tr></thead><tbody>${rowsT}</tbody></table>
+     </div>`;
+}
+
+function renderModel(key, agg, noteText) {
+  const suffix = key === 'rs' ? 'rs' : 'fm';
+  document.getElementById('sec-' + suffix).hidden = false;
+  document.getElementById('note-' + suffix).textContent = noteText;
+  document.getElementById('tile-' + suffix).textContent = fmt(agg.total);
+  renderDonut('donut-' + suffix, 'legend-' + suffix, agg.trims, agg.total);
+  renderBars('bars-' + suffix, agg.years);
+  renderTable('table-' + suffix, agg);
+}
+
+// ---------- Excel export (SpreadsheetML 2003 — opens natively in Excel) ----------
+
+function xmlEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function sheet(name, header, rows) {
+  const headCells = header.map(h => `<Cell ss:StyleID="hdr"><Data ss:Type="String">${xmlEsc(h)}</Data></Cell>`).join('');
+  const body = rows.map(r => '<Row>' + r.map(v =>
+    typeof v === 'number'
+      ? `<Cell><Data ss:Type="Number">${v}</Data></Cell>`
+      : `<Cell><Data ss:Type="String">${xmlEsc(v)}</Data></Cell>`).join('') + '</Row>').join('\n');
+  return `<Worksheet ss:Name="${xmlEsc(name)}"><Table><Row>${headCells}</Row>\n${body}</Table>
+    <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet>`;
+}
+
+function buildExcel() {
+  const { rs, fm } = state;
+  const cross = agg => {
+    const m = new Map();
+    for (const r of agg.records) {
+      const y = String(r.shnat_yitzur || 'לא ידוע');
+      const t = String(r.ramat_gimur || '').trim() || 'לא צוין';
+      const k = y + '\u0000' + t;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([k, c]) => { const [y, t] = k.split('\u0000'); return [y, t, c]; })
+      .sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true }) || b[2] - a[2]);
+  };
+  const sheets = [
+    sheet('סיכום', ['דגם', 'סה"כ על הכביש'], [
+      ['סקודה אוקטביה RS', rs.agg.total],
+      ['קופרה פורמנטור', fm.agg.total],
+    ]),
+    sheet('אוקטביה RS - שנתון', ['שנתון', 'כמות'], rs.agg.years.map(([y, c]) => [y, c])),
+    sheet('אוקטביה RS - גימור', ['רמת גימור', 'כמות'], rs.agg.trims.map(([t, c]) => [t, c])),
+    sheet('אוקטביה RS - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(rs)),
+    sheet('פורמנטור - שנתון', ['שנתון', 'כמות'], fm.agg.years.map(([y, c]) => [y, c])),
+    sheet('פורמנטור - גימור', ['רמת גימור', 'כמות'], fm.agg.trims.map(([t, c]) => [t, c])),
+    sheet('פורמנטור - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(fm)),
+  ];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles><Style ss:ID="hdr"><Font ss:Bold="1"/></Style></Styles>
+${sheets.join('\n')}
+</Workbook>`;
+  const blob = new Blob(['﻿' + xml], { type: 'application/vnd.ms-excel' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'octavia-rs-formentor-govil.xls';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---------- main flow ----------
+
+const statusEl = document.getElementById('status');
+const setStatus = (msg, isErr) => { statusEl.textContent = msg; statusEl.className = isErr ? 'error' : ''; };
+
+async function run() {
+  const btn = document.getElementById('btn-fetch');
+  btn.disabled = true;
+  setStatus('מתחבר ל־data.gov.il…');
+  try {
+    let octRecords, fmRecords;
+    if (new URLSearchParams(location.search).get('demo') === '1') {
+      ({ octRecords, fmRecords } = demoData());
+    } else {
+      const prog = (got, total, q) => setStatus(`מושך "${q}": ${fmt(got)} מתוך ${fmt(total)} רשומות…`);
+      octRecords = await fetchAllRecords('OCTAVIA', prog);
+      fmRecords = await fetchAllRecords('FORMENTOR', prog);
+    }
+
+    const rsRecords = octRecords.filter(isOctaviaRS);
+    const formentor = fmRecords.filter(isFormentor);
+    state.rs = { records: rsRecords, agg: { ...aggregate(rsRecords), records: rsRecords } };
+    state.fm = { records: formentor, agg: { ...aggregate(formentor), records: formentor } };
+
+    document.getElementById('tiles').hidden = false;
+    renderModel('rs', state.rs.agg,
+      `זוהו מתוך ${fmt(octRecords.length)} רשומות אוקטביה לפי סימון RS ברמת הגימור או בקוד הדגם.`);
+    renderModel('fm', state.fm.agg, `כל רכבי הפורמנטור הפעילים במאגר.`);
+    document.getElementById('btn-excel').disabled = false;
+    document.getElementById('ts').textContent = 'נמשך: ' + new Date().toLocaleString('he-IL');
+    setStatus(`הושלם — אוקטביה RS: ${fmt(state.rs.agg.total)} | פורמנטור: ${fmt(state.fm.agg.total)}`);
+  } catch (err) {
+    setStatus('שגיאה במשיכת הנתונים: ' + err.message +
+      ' — ודא/י שאת/ה מחובר/ת מרשת ישראלית (gov.il חוסם גישה מחו"ל) ונסה/י שוב.', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function demoData() {
+  const mk = (kinuy, gimur, year) => ({ kinuy_mishari: kinuy, ramat_gimur: gimur, shnat_yitzur: year, degem_nm: 'X', tozeret_nm: 'demo' });
+  const octRecords = [], fmRecords = [];
+  const rnd = (seed => () => (seed = seed * 48271 % 2147483647) / 2147483647)(42);
+  for (let y = 2014; y <= 2026; y++) {
+    const nRS = Math.round(40 + rnd() * 420);
+    for (let i = 0; i < nRS; i++) octRecords.push(mk('OCTAVIA', rnd() < 0.8 ? 'RS' : 'RS 245', y));
+    for (let i = 0; i < 300; i++) octRecords.push(mk('OCTAVIA', 'AMBITION', y));
+  }
+  for (let y = 2021; y <= 2026; y++) {
+    const trims = [['VZ', 0.4], ['V', 0.3], ['VZ EDITION', 0.15], ['TRIBE', 0.15]];
+    const n = Math.round(500 + rnd() * 2200);
+    for (let i = 0; i < n; i++) {
+      let p = rnd(), t = trims[0][0], acc = 0;
+      for (const [name, w] of trims) { acc += w; if (p <= acc) { t = name; break; } }
+      fmRecords.push(mk('FORMENTOR', t, y));
+    }
+  }
+  return { octRecords, fmRecords };
+}
+
+document.getElementById('btn-fetch').addEventListener('click', run);
+document.getElementById('btn-excel').addEventListener('click', buildExcel);
+if (new URLSearchParams(location.search).get('demo') === '1') run();
+</script>
+</body>
+</html>
