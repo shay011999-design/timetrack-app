@@ -52,7 +52,7 @@
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     line-height: 1.5;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 20px; }
   .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
@@ -70,10 +70,14 @@
   }
   .tile .label { font-size: 13px; color: var(--text-secondary); }
   .tile .value { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; }
+  .mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0 0 18px; }
+  .mini .tile { padding: 10px 14px; background: var(--page); }
+  .mini .value { font-size: 20px; }
   section.model { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px 8px; margin-bottom: 24px; }
   section.model h2 { font-size: 17px; margin: 0 0 2px; }
   section.model .note { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
-  .charts { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 24px; align-items: start; }
+  .charts { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 24px; align-items: start; margin-bottom: 18px; }
+  .charts3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 24px; align-items: start; margin-bottom: 18px; }
   @media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
   .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 0 0 8px; }
   .donut-box { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
@@ -81,11 +85,23 @@
   .legend li { display: flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--text-primary); }
   .legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
   .legend .pct { color: var(--text-secondary); }
+  .hbars { display: grid; gap: 6px; font-size: 13px; }
+  .hbar { display: grid; grid-template-columns: 110px 1fr 70px; gap: 10px; align-items: center; }
+  .hbar .name { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbar .track { height: 14px; border-radius: 4px; background: var(--seq); }
+  .hbar .cnt { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   details { margin: 10px 0 14px; }
   summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
   table.data { border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-  table.data th, table.data td { border: 1px solid var(--grid); padding: 4px 12px; text-align: right; font-variant-numeric: tabular-nums; }
-  table.data th { background: var(--page); font-weight: 600; }
+  table.data th, table.data td { border: 1px solid var(--grid); padding: 4px 10px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.data th { background: var(--page); font-weight: 600; position: sticky; top: 0; }
+  .rawwrap { max-height: 420px; overflow: auto; border: 1px solid var(--grid); border-radius: 8px; margin-top: 8px; }
+  .rawwrap table.data { margin: 0; border: 0; width: 100%; }
+  input.search {
+    font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--grid);
+    background: var(--page); color: var(--text-primary); width: 260px; max-width: 100%;
+  }
+  .rawmeta { font-size: 12px; color: var(--muted); margin-top: 6px; }
   #tooltip {
     position: fixed; pointer-events: none; z-index: 10; display: none;
     background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
@@ -100,7 +116,7 @@
 <body>
 <div class="wrap">
   <h1>סקודה אוקטביה וקופרה פורמנטור — כמה יש על הכביש?</h1>
-  <p class="sub">הנתונים נמשכים ישירות מהמאגר הפתוח של משרד התחבורה (כלי רכב פרטיים ומסחריים פעילים) ב־data.gov.il, בזמן אמת מהדפדפן שלך.</p>
+  <p class="sub">הנתונים נמשכים ישירות מהמאגרים הפתוחים של משרד התחבורה (רכבים פעילים + מפרטי דגמים) ב־data.gov.il, בזמן אמת מהדפדפן שלך.</p>
 
   <div class="toolbar">
     <button id="btn-fetch">משיכת נתונים מ־gov.il</button>
@@ -116,36 +132,96 @@
   <section class="model" id="sec-oct" hidden>
     <h2>סקודה אוקטביה — כל הדגמים</h2>
     <p class="note" id="note-oct"></p>
+    <div class="mini" id="mini-oct"></div>
     <div class="charts">
       <div>
         <p class="chart-title">התפלגות לפי רמת גימור</p>
-        <div class="donut-box"><div id="donut-oct"></div><ul class="legend" id="legend-oct"></ul></div>
+        <div class="donut-box"><div id="donut-trim-oct"></div><ul class="legend" id="legend-trim-oct"></ul></div>
       </div>
       <div>
-        <p class="chart-title">התפלגות לפי שנתון</p>
-        <div id="bars-oct"></div>
+        <p class="chart-title">התפלגות לפי שנתון (שנת ייצור)</p>
+        <div id="bars-year-oct"></div>
       </div>
     </div>
-    <details><summary>הצגת הנתונים כטבלה</summary><div id="table-oct"></div></details>
+    <div class="charts3">
+      <div>
+        <p class="chart-title">בעלות</p>
+        <div class="donut-box"><div id="donut-own-oct"></div><ul class="legend" id="legend-own-oct"></ul></div>
+      </div>
+      <div>
+        <p class="chart-title">נפח מנוע</p>
+        <div class="donut-box"><div id="donut-cc-oct"></div><ul class="legend" id="legend-cc-oct"></ul></div>
+      </div>
+      <div>
+        <p class="chart-title">סוג דלק</p>
+        <div class="donut-box"><div id="donut-fuel-oct"></div><ul class="legend" id="legend-fuel-oct"></ul></div>
+      </div>
+    </div>
+    <div class="charts">
+      <div>
+        <p class="chart-title">צבעים נפוצים</p>
+        <div class="hbars" id="colors-oct"></div>
+      </div>
+      <div>
+        <p class="chart-title">עלייה לכביש — לפי שנה</p>
+        <div id="bars-road-oct"></div>
+      </div>
+    </div>
+    <details>
+      <summary>נתונים מלאים לפי רכב (מספר רישוי, נפח, בעלות, עלייה לכביש ועוד)</summary>
+      <div style="margin-top:8px"><input class="search" id="search-oct" placeholder="חיפוש: מספר רישוי / גימור / צבע / בעלות…"></div>
+      <div class="rawwrap"><div id="raw-oct"></div></div>
+      <p class="rawmeta" id="rawmeta-oct"></p>
+    </details>
   </section>
 
   <section class="model" id="sec-fm" hidden>
     <h2>קופרה פורמנטור</h2>
     <p class="note" id="note-fm"></p>
+    <div class="mini" id="mini-fm"></div>
     <div class="charts">
       <div>
         <p class="chart-title">התפלגות לפי רמת גימור</p>
-        <div class="donut-box"><div id="donut-fm"></div><ul class="legend" id="legend-fm"></ul></div>
+        <div class="donut-box"><div id="donut-trim-fm"></div><ul class="legend" id="legend-trim-fm"></ul></div>
       </div>
       <div>
-        <p class="chart-title">התפלגות לפי שנתון</p>
-        <div id="bars-fm"></div>
+        <p class="chart-title">התפלגות לפי שנתון (שנת ייצור)</p>
+        <div id="bars-year-fm"></div>
       </div>
     </div>
-    <details><summary>הצגת הנתונים כטבלה</summary><div id="table-fm"></div></details>
+    <div class="charts3">
+      <div>
+        <p class="chart-title">בעלות</p>
+        <div class="donut-box"><div id="donut-own-fm"></div><ul class="legend" id="legend-own-fm"></ul></div>
+      </div>
+      <div>
+        <p class="chart-title">נפח מנוע</p>
+        <div class="donut-box"><div id="donut-cc-fm"></div><ul class="legend" id="legend-cc-fm"></ul></div>
+      </div>
+      <div>
+        <p class="chart-title">סוג דלק</p>
+        <div class="donut-box"><div id="donut-fuel-fm"></div><ul class="legend" id="legend-fuel-fm"></ul></div>
+      </div>
+    </div>
+    <div class="charts">
+      <div>
+        <p class="chart-title">צבעים נפוצים</p>
+        <div class="hbars" id="colors-fm"></div>
+      </div>
+      <div>
+        <p class="chart-title">עלייה לכביש — לפי שנה</p>
+        <div id="bars-road-fm"></div>
+      </div>
+    </div>
+    <details>
+      <summary>נתונים מלאים לפי רכב (מספר רישוי, נפח, בעלות, עלייה לכביש ועוד)</summary>
+      <div style="margin-top:8px"><input class="search" id="search-fm" placeholder="חיפוש: מספר רישוי / גימור / צבע / בעלות…"></div>
+      <div class="rawwrap"><div id="raw-fm"></div></div>
+      <p class="rawmeta" id="rawmeta-fm"></p>
+    </details>
   </section>
 
-  <p class="src">מקור: מאגר "כלי רכב פרטיים ומסחריים" (רכבים פעילים בלבד), משרד התחבורה, data.gov.il. <span id="ts"></span></p>
+  <p class="src">מקור: מאגרי "כלי רכב פרטיים ומסחריים" (רכבים פעילים בלבד) ו"מפרטי דגמי רכב", משרד התחבורה, data.gov.il. <span id="ts"></span></p>
 </div>
 <div id="tooltip"></div>
 
@@ -153,51 +229,104 @@
 'use strict';
 
 const API = 'https://data.gov.il/api/3/action/datastore_search';
-const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
-const FIELDS = 'kinuy_mishari,ramat_gimur,shnat_yitzur,degem_nm,tozeret_nm';
+const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';       // active private/commercial vehicles
+const SPEC_RESOURCE_ID = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';  // model specs (engine cc, hp, …)
+const FIELDS = ['mispar_rechev','tozeret_cd','tozeret_nm','degem_cd','degem_nm','ramat_gimur','shnat_yitzur',
+  'kinuy_mishari','baalut','tzeva_rechev','sug_delek_nm','moed_aliya_lakvish','mivchan_acharon_dt','tokef_dt',
+  'kvutzat_zihum','ramat_eivzur_betihuty'].join(',');
 const PAGE = 32000;
 
 const CAT = ['--series-1','--series-2','--series-3','--series-4','--series-5','--series-6','--series-7'];
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const fmt = n => n.toLocaleString('he-IL');
+const UNKNOWN = 'לא ידוע';
 
-const state = { oct: null, fm: null };
+const state = { oct: null, fm: null, specOk: false };
 
 // ---------- data fetching ----------
 
-async function fetchAllRecords(q, onProgress) {
+async function fetchPage(params) {
+  const qs = new URLSearchParams({ resource_id: params.resource_id, limit: params.limit, offset: params.offset });
+  if (params.q) qs.set('q', params.q);
+  if (params.filters) qs.set('filters', JSON.stringify(params.filters));
+  if (params.fields) qs.set('fields', params.fields);
+  const res = await fetch(`${API}?${qs}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} מהשרת של data.gov.il`);
+  const json = await res.json();
+  if (!json.success) throw new Error('ה־API החזיר שגיאה');
+  return json.result;
+}
+
+async function fetchAllRecords(params, onProgress) {
   let records = [], offset = 0, total = Infinity;
   while (offset < total && offset < PAGE * 12) {
-    const url = `${API}?resource_id=${RESOURCE_ID}&q=${encodeURIComponent(q)}&fields=${encodeURIComponent(FIELDS)}&limit=${PAGE}&offset=${offset}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status} מהשרת של data.gov.il`);
-    const json = await res.json();
-    if (!json.success) throw new Error('ה־API החזיר שגיאה');
-    total = json.result.total;
-    records = records.concat(json.result.records);
+    const result = await fetchPage({ ...params, limit: PAGE, offset });
+    total = result.total;
+    records = records.concat(result.records);
     offset += PAGE;
-    onProgress && onProgress(Math.min(records.length, total), total, q);
+    onProgress && onProgress(Math.min(records.length, total), total);
   }
   return records;
 }
 
 const norm = v => String(v == null ? '' : v).trim().toUpperCase();
-
 const isOctavia = r => norm(r.kinuy_mishari).includes('OCTAVIA');
 const isFormentor = r => norm(r.kinuy_mishari).includes('FORMENTOR');
 
-function aggregate(records) {
-  const byYear = new Map(), byTrim = new Map();
-  for (const r of records) {
-    const y = String(r.shnat_yitzur || 'לא ידוע');
-    const t = String(r.ramat_gimur || '').trim() || 'לא צוין';
-    byYear.set(y, (byYear.get(y) || 0) + 1);
-    byTrim.set(t, (byTrim.get(t) || 0) + 1);
+// spec join key: manufacturer code + model code + production year
+const numKey = v => { const n = Number(v); return Number.isFinite(n) ? String(n) : norm(v); };
+const specKey = r => `${numKey(r.tozeret_cd)}|${numKey(r.degem_cd)}|${numKey(r.shnat_yitzur)}`;
+
+// pull the model-spec rows for every manufacturer code we saw, keyed for the join
+async function fetchSpecs(records, onProgress) {
+  const codes = [...new Set(records.map(r => r.tozeret_cd).filter(v => v != null && v !== ''))];
+  const map = new Map();
+  for (const code of codes) {
+    const rows = await fetchAllRecords({ resource_id: SPEC_RESOURCE_ID, filters: { tozeret_cd: code } }, onProgress);
+    for (const row of rows) {
+      const k = specKey(row);
+      if (!map.has(k)) map.set(k, row);
+    }
   }
+  return map;
+}
+
+function enrich(records, specMap) {
+  for (const r of records) {
+    const spec = specMap && specMap.get(specKey(r));
+    const cc = spec && Number(spec.nefach_manoa);
+    r._cc = Number.isFinite(cc) && cc > 0 ? cc : null;
+    const hp = spec && Number(spec.koah_sus);
+    r._hp = Number.isFinite(hp) && hp > 0 ? hp : null;
+    r._roadYear = /^\d{4}/.test(String(r.moed_aliya_lakvish || '')) ? String(r.moed_aliya_lakvish).slice(0, 4) : UNKNOWN;
+    r._trim = String(r.ramat_gimur || '').trim() || 'לא צוין';
+    r._year = String(r.shnat_yitzur || UNKNOWN);
+  }
+}
+
+// ---------- aggregation ----------
+
+function countBy(records, keyFn) {
+  const m = new Map();
+  for (const r of records) {
+    const k = keyFn(r);
+    m.set(k, (m.get(k) || 0) + 1);
+  }
+  return m;
+}
+const byCountDesc = m => [...m.entries()].sort((a, b) => b[1] - a[1]);
+const byKeyAsc = m => [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true }));
+
+function aggregate(records) {
   return {
     total: records.length,
-    years: [...byYear.entries()].sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true })),
-    trims: [...byTrim.entries()].sort((a, b) => b[1] - a[1]),
+    years: byKeyAsc(countBy(records, r => r._year)),
+    trims: byCountDesc(countBy(records, r => r._trim)),
+    owners: byCountDesc(countBy(records, r => String(r.baalut || UNKNOWN).trim() || UNKNOWN)),
+    fuels: byCountDesc(countBy(records, r => String(r.sug_delek_nm || UNKNOWN).trim() || UNKNOWN)),
+    ccs: byCountDesc(countBy(records, r => r._cc ? `${fmt(r._cc)} סמ״ק` : UNKNOWN)),
+    colors: byCountDesc(countBy(records, r => String(r.tzeva_rechev || UNKNOWN).trim() || UNKNOWN)),
+    roadYears: byKeyAsc(countBy(records, r => r._roadYear)),
   };
 }
 
@@ -217,23 +346,23 @@ function showTip(evt, html) {
 }
 function hideTip() { tooltip.style.display = 'none'; }
 
-// donut: top 6 trims + "Other", fixed categorical order, 2px surface gap between segments
-function renderDonut(mountId, legendId, trims, total) {
+// donut: top 6 categories + "Other", fixed categorical order, 2px surface gap between segments
+function renderDonut(mountId, legendId, entries, total, ariaLabel) {
   const MAXSLICES = 6;
-  const slices = trims.slice(0, MAXSLICES).map(([name, count], i) => ({ name, count, color: cssVar(CAT[i]) }));
-  const rest = trims.slice(MAXSLICES).reduce((s, [, c]) => s + c, 0);
+  const slices = entries.slice(0, MAXSLICES).map(([name, count], i) => ({ name, count, color: cssVar(CAT[i]) }));
+  const rest = entries.slice(MAXSLICES).reduce((s, [, c]) => s + c, 0);
   if (rest > 0) slices.push({ name: 'אחר', count: rest, color: cssVar('--other') });
 
-  const size = 190, cx = size / 2, cy = size / 2, R = 86, rIn = 52;
+  const size = 170, cx = size / 2, cy = size / 2, R = 76, rIn = 46;
   let a0 = -Math.PI / 2;
   const surface = cssVar('--surface-1');
   const paths = slices.map(s => {
     const frac = s.count / total;
-    const a1 = a0 + frac * Math.PI * 2;
+    const a1 = a0 + Math.min(frac, 0.99999) * Math.PI * 2;
     const large = (a1 - a0) > Math.PI ? 1 : 0;
     const p = (a, r) => `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
     const d = `M ${p(a0, R)} A ${R} ${R} 0 ${large} 1 ${p(a1, R)} L ${p(a1, rIn)} A ${rIn} ${rIn} 0 ${large} 0 ${p(a0, rIn)} Z`;
-    a0 = a1;
+    a0 += frac * Math.PI * 2;
     return { ...s, d, frac };
   });
 
@@ -241,10 +370,10 @@ function renderDonut(mountId, legendId, trims, total) {
     `<path d="${s.d}" fill="${s.color}" stroke="${surface}" stroke-width="2" data-i="${i}"></path>`);
   const mount = document.getElementById(mountId);
   mount.innerHTML =
-    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="התפלגות לפי רמת גימור">
+    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${ariaLabel}">
        ${svgParts.join('')}
-       <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="20" font-weight="700" class="val">${fmt(total)}</text>
-       <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-size="11">סה״כ</text>
+       <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="17" font-weight="700" class="val">${fmt(total)}</text>
+       <text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="10">סה״כ</text>
      </svg>`;
 
   mount.querySelectorAll('path').forEach(el => {
@@ -259,8 +388,10 @@ function renderDonut(mountId, legendId, trims, total) {
        <span class="pct">— ${fmt(s.count)} (${(s.frac * 100).toFixed(1)}%)</span></li>`).join('');
 }
 
-// column chart by year: single sequential hue (magnitude on height), hover tooltips
-function renderBars(mountId, years) {
+// column chart keyed by year: single sequential hue, hover tooltips
+function renderBars(mountId, entries, tipLabel) {
+  const years = entries.filter(([k]) => k !== UNKNOWN);
+  if (!years.length) { document.getElementById(mountId).innerHTML = `<p class="rawmeta">אין נתונים</p>`; return; }
   const W = 560, H = 220, mL = 8, mR = 8, mT = 18, mB = 26;
   const iw = W - mL - mR, ih = H - mT - mB;
   const max = Math.max(...years.map(([, c]) => c), 1);
@@ -290,36 +421,101 @@ function renderBars(mountId, years) {
 
   const mount = document.getElementById(mountId);
   mount.innerHTML =
-    `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="התפלגות לפי שנתון" style="direction:ltr">
+    `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="${tipLabel}" style="direction:ltr">
        ${gridLines}${bars}
        <line x1="${mL}" x2="${W - mR}" y1="${mT + ih}" y2="${mT + ih}" stroke="${baseline}" stroke-width="1"></line>
      </svg>`;
 
   mount.querySelectorAll('g[data-i]').forEach(el => {
     const [year, count] = years[+el.dataset.i];
-    el.addEventListener('mousemove', e => showTip(e, `<b>שנתון ${year}</b><br>${fmt(count)} רכבים`));
+    el.addEventListener('mousemove', e => showTip(e, `<b>${tipLabel} ${year}</b><br>${fmt(count)} רכבים`));
     el.addEventListener('mouseleave', hideTip);
   });
 }
 
-function renderTable(mountId, agg) {
-  const rowsY = agg.years.map(([y, c]) => `<tr><td>${y}</td><td>${fmt(c)}</td></tr>`).join('');
-  const rowsT = agg.trims.map(([t, c]) => `<tr><td>${t}</td><td>${fmt(c)}</td></tr>`).join('');
-  document.getElementById(mountId).innerHTML =
-    `<div style="display:flex;gap:32px;flex-wrap:wrap">
-       <table class="data"><thead><tr><th>שנתון</th><th>כמות</th></tr></thead><tbody>${rowsY}</tbody></table>
-       <table class="data"><thead><tr><th>רמת גימור</th><th>כמות</th></tr></thead><tbody>${rowsT}</tbody></table>
-     </div>`;
+// horizontal bars for top colors: single hue, count labels in ink
+function renderHBars(mountId, entries, topN) {
+  const top = entries.slice(0, topN);
+  const rest = entries.slice(topN).reduce((s, [, c]) => s + c, 0);
+  if (rest > 0) top.push(['אחר', rest]);
+  const max = Math.max(...top.map(([, c]) => c), 1);
+  document.getElementById(mountId).innerHTML = top.map(([name, count]) => {
+    const w = Math.max(count / max * 100, 1.5);
+    const bg = name === 'אחר' ? 'var(--other)' : 'var(--seq)';
+    return `<div class="hbar" title="${name}: ${fmt(count)}">
+      <span class="name">${name}</span>
+      <div><div class="track" style="width:${w}%;background:${bg}"></div></div>
+      <span class="cnt">${fmt(count)}</span>
+    </div>`;
+  }).join('');
 }
 
+// ---------- raw per-vehicle table ----------
+
+const RAW_COLS = [
+  ['mispar_rechev', 'מספר רישוי'],
+  ['_year', 'שנתון'],
+  ['_trim', 'רמת גימור'],
+  ['degem_nm', 'קוד דגם'],
+  ['ccText', 'נפח מנוע'],
+  ['hpText', 'כוח סוס'],
+  ['baalut', 'בעלות'],
+  ['tzeva_rechev', 'צבע'],
+  ['sug_delek_nm', 'סוג דלק'],
+  ['moed_aliya_lakvish', 'עלייה לכביש'],
+  ['tokef_dt', 'תוקף רישוי'],
+  ['kvutzat_zihum', 'קב׳ זיהום'],
+  ['ramat_eivzur_betihuty', 'אבזור בטיחות'],
+];
+const cell = (r, key) => {
+  if (key === 'ccText') return r._cc ? fmt(r._cc) : '—';
+  if (key === 'hpText') return r._hp ? fmt(r._hp) : '—';
+  const v = r[key];
+  if (v == null || v === '') return '—';
+  return String(v).replace(/T00:00:00(\.\d+)?/, '');
+};
+
+function renderRaw(key) {
+  const records = state[key].records;
+  const q = norm(document.getElementById('search-' + key).value);
+  const matches = q
+    ? records.filter(r => RAW_COLS.some(([c]) => norm(cell(r, c)).includes(q)))
+    : records;
+  const LIMIT = 200;
+  const shown = matches.slice(0, LIMIT);
+  document.getElementById('raw-' + key).innerHTML =
+    `<table class="data"><thead><tr>${RAW_COLS.map(([, h]) => `<th>${h}</th>`).join('')}</tr></thead>
+     <tbody>${shown.map(r => `<tr>${RAW_COLS.map(([c]) => `<td>${cell(r, c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  document.getElementById('rawmeta-' + key).textContent =
+    matches.length > LIMIT
+      ? `מוצגות ${fmt(LIMIT)} רשומות מתוך ${fmt(matches.length)} תואמות — הרשימה המלאה בקובץ האקסל.`
+      : `${fmt(matches.length)} רשומות.`;
+}
+
+// ---------- rendering a model section ----------
+
 function renderModel(key, agg, noteText) {
-  const suffix = key;
-  document.getElementById('sec-' + suffix).hidden = false;
-  document.getElementById('note-' + suffix).textContent = noteText;
-  document.getElementById('tile-' + suffix).textContent = fmt(agg.total);
-  renderDonut('donut-' + suffix, 'legend-' + suffix, agg.trims, agg.total);
-  renderBars('bars-' + suffix, agg.years);
-  renderTable('table-' + suffix, agg);
+  document.getElementById('sec-' + key).hidden = false;
+  document.getElementById('note-' + key).textContent = noteText;
+  document.getElementById('tile-' + key).textContent = fmt(agg.total);
+
+  const pct = n => (n / agg.total * 100).toFixed(1) + '%';
+  const privateCount = agg.owners.find(([n]) => n === 'פרטי');
+  const topCc = agg.ccs.find(([n]) => n !== UNKNOWN);
+  const topYear = [...agg.years].sort((a, b) => b[1] - a[1])[0];
+  document.getElementById('mini-' + key).innerHTML = `
+    <div class="tile"><div class="label">בבעלות פרטית</div><div class="value">${privateCount ? pct(privateCount[1]) : '—'}</div></div>
+    <div class="tile"><div class="label">נפח מנוע נפוץ</div><div class="value">${topCc ? topCc[0] : '—'}</div></div>
+    <div class="tile"><div class="label">השנתון הנפוץ</div><div class="value">${topYear ? `${topYear[0]} (${fmt(topYear[1])})` : '—'}</div></div>`;
+
+  renderDonut('donut-trim-' + key, 'legend-trim-' + key, agg.trims, agg.total, 'התפלגות לפי רמת גימור');
+  renderBars('bars-year-' + key, agg.years, 'שנתון');
+  renderDonut('donut-own-' + key, 'legend-own-' + key, agg.owners, agg.total, 'התפלגות לפי בעלות');
+  renderDonut('donut-cc-' + key, 'legend-cc-' + key, agg.ccs, agg.total, 'התפלגות לפי נפח מנוע');
+  renderDonut('donut-fuel-' + key, 'legend-fuel-' + key, agg.fuels, agg.total, 'התפלגות לפי סוג דלק');
+  renderHBars('colors-' + key, agg.colors, 8);
+  renderBars('bars-road-' + key, agg.roadYears, 'עלו לכביש בשנת');
+  renderRaw(key);
 }
 
 // ---------- Excel export (SpreadsheetML 2003 — opens natively in Excel) ----------
@@ -336,31 +532,48 @@ function sheet(name, header, rows) {
     <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet>`;
 }
 
-function buildExcel() {
-  const { oct, fm } = state;
-  const cross = agg => {
+function modelSheets(label, data) {
+  const agg = data.agg;
+  const cross = () => {
     const m = new Map();
-    for (const r of agg.records) {
-      const y = String(r.shnat_yitzur || 'לא ידוע');
-      const t = String(r.ramat_gimur || '').trim() || 'לא צוין';
-      const k = y + '\u0000' + t;
+    for (const r of data.records) {
+      const k = r._year + '\u0000' + r._trim;
       m.set(k, (m.get(k) || 0) + 1);
     }
     return [...m.entries()]
       .map(([k, c]) => { const [y, t] = k.split('\u0000'); return [y, t, c]; })
       .sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true }) || b[2] - a[2]);
   };
+  const pair = entries => entries.map(([k, c]) => [k, c]);
+  const raw = data.records.map(r => [
+    String(r.mispar_rechev ?? ''), r._year, r._trim, String(r.degem_nm ?? ''),
+    r._cc ?? '', r._hp ?? '',
+    String(r.baalut ?? ''), String(r.tzeva_rechev ?? ''), String(r.sug_delek_nm ?? ''),
+    String(r.moed_aliya_lakvish ?? ''), cell(r, 'mivchan_acharon_dt'), cell(r, 'tokef_dt'),
+    String(r.kvutzat_zihum ?? ''), String(r.ramat_eivzur_betihuty ?? ''),
+  ]);
+  return [
+    sheet(label + ' - שנתון', ['שנתון', 'כמות'], pair(agg.years)),
+    sheet(label + ' - גימור', ['רמת גימור', 'כמות'], pair(agg.trims)),
+    sheet(label + ' - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross()),
+    sheet(label + ' - בעלות', ['בעלות', 'כמות'], pair(agg.owners)),
+    sheet(label + ' - נפח מנוע', ['נפח מנוע', 'כמות'], pair(agg.ccs)),
+    sheet(label + ' - סוג דלק', ['סוג דלק', 'כמות'], pair(agg.fuels)),
+    sheet(label + ' - צבע', ['צבע', 'כמות'], pair(agg.colors)),
+    sheet(label + ' - עלייה לכביש', ['שנת עלייה לכביש', 'כמות'], pair(agg.roadYears)),
+    sheet(label + ' - גולמי', ['מספר רישוי', 'שנתון', 'רמת גימור', 'קוד דגם', 'נפח מנוע', 'כוח סוס', 'בעלות', 'צבע',
+      'סוג דלק', 'עלייה לכביש', 'מבחן אחרון', 'תוקף רישוי', 'קבוצת זיהום', 'אבזור בטיחות'], raw),
+  ];
+}
+
+function buildExcel() {
   const sheets = [
     sheet('סיכום', ['דגם', 'סה"כ על הכביש'], [
-      ['סקודה אוקטביה (כל הדגמים)', oct.agg.total],
-      ['קופרה פורמנטור', fm.agg.total],
+      ['סקודה אוקטביה (כל הדגמים)', state.oct.agg.total],
+      ['קופרה פורמנטור', state.fm.agg.total],
     ]),
-    sheet('אוקטביה - שנתון', ['שנתון', 'כמות'], oct.agg.years.map(([y, c]) => [y, c])),
-    sheet('אוקטביה - גימור', ['רמת גימור', 'כמות'], oct.agg.trims.map(([t, c]) => [t, c])),
-    sheet('אוקטביה - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(oct)),
-    sheet('פורמנטור - שנתון', ['שנתון', 'כמות'], fm.agg.years.map(([y, c]) => [y, c])),
-    sheet('פורמנטור - גימור', ['רמת גימור', 'כמות'], fm.agg.trims.map(([t, c]) => [t, c])),
-    sheet('פורמנטור - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross(fm)),
+    ...modelSheets('אוקטביה', state.oct),
+    ...modelSheets('פורמנטור', state.fm),
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
@@ -387,23 +600,35 @@ async function run() {
   btn.disabled = true;
   setStatus('מתחבר ל־data.gov.il…');
   try {
-    let octRecords, fmRecords;
+    let octRecords, fmRecords, specMap;
     if (new URLSearchParams(location.search).get('demo') === '1') {
-      ({ octRecords, fmRecords } = demoData());
+      ({ octRecords, fmRecords, specMap } = demoData());
+      state.specOk = true;
     } else {
-      const prog = (got, total, q) => setStatus(`מושך "${q}": ${fmt(got)} מתוך ${fmt(total)} רשומות…`);
-      octRecords = await fetchAllRecords('OCTAVIA', prog);
-      fmRecords = await fetchAllRecords('FORMENTOR', prog);
+      const prog = name => (got, total) => setStatus(`מושך ${name}: ${fmt(got)} מתוך ${fmt(total)} רשומות…`);
+      octRecords = await fetchAllRecords({ resource_id: RESOURCE_ID, q: 'OCTAVIA', fields: FIELDS }, prog('אוקטביה'));
+      fmRecords = await fetchAllRecords({ resource_id: RESOURCE_ID, q: 'FORMENTOR', fields: FIELDS }, prog('פורמנטור'));
+      try {
+        setStatus('מושך מפרטי דגמים (נפח מנוע, כוח סוס)…');
+        specMap = await fetchSpecs([...octRecords, ...fmRecords], () => {});
+        state.specOk = specMap.size > 0;
+      } catch (e) {
+        specMap = null;
+        state.specOk = false;
+      }
     }
 
     const octavia = octRecords.filter(isOctavia);
     const formentor = fmRecords.filter(isFormentor);
-    state.oct = { records: octavia, agg: { ...aggregate(octavia), records: octavia } };
-    state.fm = { records: formentor, agg: { ...aggregate(formentor), records: formentor } };
+    enrich(octavia, specMap);
+    enrich(formentor, specMap);
+    state.oct = { records: octavia, agg: aggregate(octavia) };
+    state.fm = { records: formentor, agg: aggregate(formentor) };
 
+    const specNote = state.specOk ? '' : ' נפח מנוע וכוח סוס לא היו זמינים ממאגר המפרטים בריצה זו.';
     document.getElementById('tiles').hidden = false;
-    renderModel('oct', state.oct.agg, `כל רכבי האוקטביה הפעילים במאגר, בכל רמות הגימור (כולל RS).`);
-    renderModel('fm', state.fm.agg, `כל רכבי הפורמנטור הפעילים במאגר.`);
+    renderModel('oct', state.oct.agg, 'כל רכבי האוקטביה הפעילים במאגר, בכל רמות הגימור (כולל RS).' + specNote);
+    renderModel('fm', state.fm.agg, 'כל רכבי הפורמנטור הפעילים במאגר.' + specNote);
     document.getElementById('btn-excel').disabled = false;
     document.getElementById('ts').textContent = 'נמשך: ' + new Date().toLocaleString('he-IL');
     setStatus(`הושלם — אוקטביה: ${fmt(state.oct.agg.total)} | פורמנטור: ${fmt(state.fm.agg.total)}`);
@@ -415,33 +640,56 @@ async function run() {
   }
 }
 
+// ---------- demo data (layout preview only, ?demo=1) ----------
+
 function demoData() {
-  const mk = (kinuy, gimur, year) => ({ kinuy_mishari: kinuy, ramat_gimur: gimur, shnat_yitzur: year, degem_nm: 'X', tozeret_nm: 'demo' });
-  const octRecords = [], fmRecords = [];
   const rnd = (seed => () => (seed = seed * 48271 % 2147483647) / 2147483647)(42);
+  const pick = (pairs, p) => { let acc = 0; for (const [v, w] of pairs) { acc += w; if (p <= acc) return v; } return pairs[0][0]; };
+  const OWNERS = [['פרטי', .72], ['ליסינג', .14], ['השכרה', .08], ['חברה', .06]];
+  const COLORS = [['לבן', .3], ['אפור מטל', .2], ['שחור', .15], ['כסף', .12], ['כחול', .1], ['אדום', .08], ['ירוק', .05]];
+  const specMap = new Map();
+  const mk = (kinuy, gimur, year, cd, cc, fuel) => {
+    const tozeret_cd = kinuy === 'OCTAVIA' ? 819 : 990;
+    specMap.set(`${tozeret_cd}|${cd}|${year}`, { tozeret_cd, degem_cd: cd, shnat_yitzur: year, nefach_manoa: cc, koah_sus: Math.round(cc / 8) });
+    const m = String(1 + Math.floor(rnd() * 12)).padStart(2, '0');
+    return {
+      mispar_rechev: String(10000000 + Math.floor(rnd() * 89999999)),
+      tozeret_cd, degem_cd: cd, degem_nm: 'DM' + cd, tozeret_nm: kinuy === 'OCTAVIA' ? 'סקודה צכיה' : 'קופרה ספרד',
+      kinuy_mishari: kinuy, ramat_gimur: gimur, shnat_yitzur: year,
+      baalut: pick(OWNERS, rnd()), tzeva_rechev: pick(COLORS, rnd()), sug_delek_nm: fuel,
+      moed_aliya_lakvish: `${year}-${m}`, mivchan_acharon_dt: `${2025 + Math.round(rnd())}-${m}-01`,
+      tokef_dt: `${2026 + Math.round(rnd())}-${m}-01`, kvutzat_zihum: 2 + Math.floor(rnd() * 13),
+      ramat_eivzur_betihuty: Math.floor(rnd() * 8),
+    };
+  };
+  const octRecords = [], fmRecords = [];
   for (let y = 2014; y <= 2026; y++) {
     const nRS = Math.round(40 + rnd() * 420);
-    for (let i = 0; i < nRS; i++) octRecords.push(mk('OCTAVIA', rnd() < 0.8 ? 'RS' : 'RS 245', y));
-    const trims = [['AMBITION', 900], ['STYLE', 600], ['ELEGANCE', 350], ['ACTIVE', 200], ['SPORTLINE', 120], ['SELECTION', 80]];
-    for (const [t, base] of trims) {
+    for (let i = 0; i < nRS; i++) octRecords.push(mk('OCTAVIA', rnd() < 0.8 ? 'RS' : 'RS 245', y, 35, 1984, 'בנזין'));
+    const trims = [['AMBITION', 900, 21, 1498], ['STYLE', 600, 22, 1498], ['ELEGANCE', 350, 23, 1798],
+      ['ACTIVE', 200, 24, 999], ['SPORTLINE', 120, 25, 1498], ['SELECTION', 80, 26, 1498]];
+    for (const [t, base, cd, cc] of trims) {
       const n = Math.round(base * (0.5 + rnd()));
-      for (let i = 0; i < n; i++) octRecords.push(mk('OCTAVIA', t, y));
+      for (let i = 0; i < n; i++) octRecords.push(mk('OCTAVIA', t, y, cd, cc, rnd() < .85 ? 'בנזין' : 'דיזל'));
     }
   }
   for (let y = 2021; y <= 2026; y++) {
-    const trims = [['VZ', 0.4], ['V', 0.3], ['VZ EDITION', 0.15], ['TRIBE', 0.15]];
+    const trims = [['VZ', 0.4, 50, 1984], ['V', 0.3, 51, 1498], ['VZ EDITION', 0.15, 52, 1984], ['TRIBE', 0.15, 53, 1498]];
     const n = Math.round(500 + rnd() * 2200);
     for (let i = 0; i < n; i++) {
-      let p = rnd(), t = trims[0][0], acc = 0;
-      for (const [name, w] of trims) { acc += w; if (p <= acc) { t = name; break; } }
-      fmRecords.push(mk('FORMENTOR', t, y));
+      let p = rnd(), acc = 0, chosen = trims[0];
+      for (const t of trims) { acc += t[1]; if (p <= acc) { chosen = t; break; } }
+      fmRecords.push(mk('FORMENTOR', chosen[0], y, chosen[2], chosen[3], rnd() < .7 ? 'בנזין' : 'היברידי'));
     }
   }
-  return { octRecords, fmRecords };
+  return { octRecords, fmRecords, specMap };
 }
 
 document.getElementById('btn-fetch').addEventListener('click', run);
 document.getElementById('btn-excel').addEventListener('click', buildExcel);
+for (const key of ['oct', 'fm']) {
+  document.getElementById('search-' + key).addEventListener('input', () => state[key] && renderRaw(key));
+}
 if (new URLSearchParams(location.search).get('demo') === '1') run();
 </script>
 </body>
