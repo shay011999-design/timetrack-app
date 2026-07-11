@@ -24,6 +24,8 @@
     --series-8: #eb6834; /* orange */
     --other: #898781;
     --seq: #2a78d6;
+    --good: #006300;
+    --bad: #d03b3b;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -44,6 +46,8 @@
       --series-7: #d55181;
       --series-8: #d95926;
       --seq: #3987e5;
+      --good: #0ca30c;
+      --bad: #e66767;
     }
   }
   * { box-sizing: border-box; }
@@ -62,8 +66,17 @@
   }
   button.secondary { background: var(--surface-1); color: var(--text-primary); }
   button:disabled { opacity: .5; cursor: default; }
-  #status { font-size: 13px; color: var(--text-secondary); min-height: 20px; margin-bottom: 16px; }
-  #status.error { color: #d03b3b; }
+  #status { font-size: 13px; color: var(--text-secondary); min-height: 20px; margin-bottom: 10px; }
+  #status.error { color: var(--bad); }
+  .sources { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip {
+    font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--grid);
+    background: var(--surface-1); color: var(--text-secondary);
+  }
+  .chip.ok { border-color: var(--good); }
+  .chip.ok::before { content: "✓ "; color: var(--good); font-weight: 700; }
+  .chip.fail { border-color: var(--grid); opacity: .75; }
+  .chip.fail::before { content: "✗ "; color: var(--bad); font-weight: 700; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 8px 0 24px; }
   .tile {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
@@ -75,6 +88,7 @@
   .mini .value { font-size: 20px; }
   section.model { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 18px 8px; margin-bottom: 24px; }
   section.model h2 { font-size: 17px; margin: 0 0 2px; }
+  section.model h3 { font-size: 14px; margin: 4px 0 10px; color: var(--text-secondary); }
   section.model .note { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
   .charts { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 24px; align-items: start; margin-bottom: 18px; }
   .charts3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 24px; align-items: start; margin-bottom: 18px; }
@@ -86,7 +100,7 @@
   .legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
   .legend .pct { color: var(--text-secondary); }
   .hbars { display: grid; gap: 6px; font-size: 13px; }
-  .hbar { display: grid; grid-template-columns: 110px 1fr 70px; gap: 10px; align-items: center; }
+  .hbar { display: grid; grid-template-columns: 130px 1fr 70px; gap: 10px; align-items: center; }
   .hbar .name { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hbar .track { height: 14px; border-radius: 4px; background: var(--seq); }
   .hbar .cnt { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
@@ -116,145 +130,74 @@
 <body>
 <div class="wrap">
   <h1>סקודה אוקטביה וקופרה פורמנטור — כמה יש על הכביש?</h1>
-  <p class="sub">הנתונים נמשכים ישירות מהמאגרים הפתוחים של משרד התחבורה (רכבים פעילים + מפרטי דגמים) ב־data.gov.il, בזמן אמת מהדפדפן שלך.</p>
+  <p class="sub">הצלבה חיה של מאגרי משרד התחבורה ב־data.gov.il: רכבים פעילים, מפרטי דגמים, רכבים שירדו מהכביש, אובדן גמור ויבוא אישי — הכל נמשך מהדפדפן שלך.</p>
 
   <div class="toolbar">
     <button id="btn-fetch">משיכת נתונים מ־gov.il</button>
     <button id="btn-excel" class="secondary" disabled>⬇ הורדה לאקסל</button>
   </div>
   <div id="status"></div>
+  <div class="sources" id="sources"></div>
 
   <div class="cards" id="tiles" hidden>
     <div class="tile"><div class="label">סקודה אוקטביה (כל הדגמים)</div><div class="value" id="tile-oct">—</div></div>
     <div class="tile"><div class="label">קופרה פורמנטור</div><div class="value" id="tile-fm">—</div></div>
   </div>
 
-  <section class="model" id="sec-oct" hidden>
-    <h2>סקודה אוקטביה — כל הדגמים</h2>
-    <p class="note" id="note-oct"></p>
-    <div class="mini" id="mini-oct"></div>
-    <div class="charts">
-      <div>
-        <p class="chart-title">התפלגות לפי רמת גימור</p>
-        <div class="donut-box"><div id="donut-trim-oct"></div><ul class="legend" id="legend-trim-oct"></ul></div>
-      </div>
-      <div>
-        <p class="chart-title">התפלגות לפי שנתון (שנת ייצור)</p>
-        <div id="bars-year-oct"></div>
-      </div>
-    </div>
-    <div class="charts3">
-      <div>
-        <p class="chart-title">בעלות</p>
-        <div class="donut-box"><div id="donut-own-oct"></div><ul class="legend" id="legend-own-oct"></ul></div>
-      </div>
-      <div>
-        <p class="chart-title">נפח מנוע</p>
-        <div class="donut-box"><div id="donut-cc-oct"></div><ul class="legend" id="legend-cc-oct"></ul></div>
-      </div>
-      <div>
-        <p class="chart-title">סוג דלק</p>
-        <div class="donut-box"><div id="donut-fuel-oct"></div><ul class="legend" id="legend-fuel-oct"></ul></div>
-      </div>
-    </div>
-    <div class="charts">
-      <div>
-        <p class="chart-title">צבעים נפוצים</p>
-        <div class="hbars" id="colors-oct"></div>
-      </div>
-      <div>
-        <p class="chart-title">עלייה לכביש — לפי שנה</p>
-        <div id="bars-road-oct"></div>
-      </div>
-    </div>
-    <details>
-      <summary>נתונים מלאים לפי רכב (מספר רישוי, נפח, בעלות, עלייה לכביש ועוד)</summary>
-      <div style="margin-top:8px"><input class="search" id="search-oct" placeholder="חיפוש: מספר רישוי / גימור / צבע / בעלות…"></div>
-      <div class="rawwrap"><div id="raw-oct"></div></div>
-      <p class="rawmeta" id="rawmeta-oct"></p>
-    </details>
-  </section>
+  <section class="model" id="sec-oct" hidden></section>
+  <section class="model" id="sec-fm" hidden></section>
 
-  <section class="model" id="sec-fm" hidden>
-    <h2>קופרה פורמנטור</h2>
-    <p class="note" id="note-fm"></p>
-    <div class="mini" id="mini-fm"></div>
-    <div class="charts">
-      <div>
-        <p class="chart-title">התפלגות לפי רמת גימור</p>
-        <div class="donut-box"><div id="donut-trim-fm"></div><ul class="legend" id="legend-trim-fm"></ul></div>
-      </div>
-      <div>
-        <p class="chart-title">התפלגות לפי שנתון (שנת ייצור)</p>
-        <div id="bars-year-fm"></div>
-      </div>
-    </div>
-    <div class="charts3">
-      <div>
-        <p class="chart-title">בעלות</p>
-        <div class="donut-box"><div id="donut-own-fm"></div><ul class="legend" id="legend-own-fm"></ul></div>
-      </div>
-      <div>
-        <p class="chart-title">נפח מנוע</p>
-        <div class="donut-box"><div id="donut-cc-fm"></div><ul class="legend" id="legend-cc-fm"></ul></div>
-      </div>
-      <div>
-        <p class="chart-title">סוג דלק</p>
-        <div class="donut-box"><div id="donut-fuel-fm"></div><ul class="legend" id="legend-fuel-fm"></ul></div>
-      </div>
-    </div>
-    <div class="charts">
-      <div>
-        <p class="chart-title">צבעים נפוצים</p>
-        <div class="hbars" id="colors-fm"></div>
-      </div>
-      <div>
-        <p class="chart-title">עלייה לכביש — לפי שנה</p>
-        <div id="bars-road-fm"></div>
-      </div>
-    </div>
-    <details>
-      <summary>נתונים מלאים לפי רכב (מספר רישוי, נפח, בעלות, עלייה לכביש ועוד)</summary>
-      <div style="margin-top:8px"><input class="search" id="search-fm" placeholder="חיפוש: מספר רישוי / גימור / צבע / בעלות…"></div>
-      <div class="rawwrap"><div id="raw-fm"></div></div>
-      <p class="rawmeta" id="rawmeta-fm"></p>
-    </details>
-  </section>
-
-  <p class="src">מקור: מאגרי "כלי רכב פרטיים ומסחריים" (רכבים פעילים בלבד) ו"מפרטי דגמי רכב", משרד התחבורה, data.gov.il. <span id="ts"></span></p>
+  <p class="src">מקור: המאגרים הפתוחים של משרד התחבורה ב־data.gov.il (רכבים פעילים בלבד בספירה הראשית). <span id="ts"></span></p>
 </div>
 <div id="tooltip"></div>
 
 <script>
 'use strict';
 
-const API = 'https://data.gov.il/api/3/action/datastore_search';
+const API_BASE = 'https://data.gov.il/api/3/action/';
+const SEP = String.fromCharCode(0); // join-key separator that can never appear in the data
+
+// core datasets (well-known resource ids); extra datasets are discovered at runtime
 const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';       // active private/commercial vehicles
-const SPEC_RESOURCE_ID = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';  // model specs (engine cc, hp, …)
+const SPEC_RESOURCE_ID = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';  // model specs (engine cc, hp, drivetrain, …)
 const FIELDS = ['mispar_rechev','tozeret_cd','tozeret_nm','degem_cd','degem_nm','ramat_gimur','shnat_yitzur',
   'kinuy_mishari','baalut','tzeva_rechev','sug_delek_nm','moed_aliya_lakvish','mivchan_acharon_dt','tokef_dt',
   'kvutzat_zihum','ramat_eivzur_betihuty'].join(',');
 const PAGE = 32000;
 
+// optional cross-reference sources: known-id guesses first, CKAN package_search as fallback
+const EXTRA_SOURCES = [
+  { key: 'inactive', label: 'רכבים לא פעילים (ירדו מהכביש)', candidates: ['f6efe89a-fb3d-43a4-bb61-9bf12a9b9099'], search: 'כלי רכב לא פעילים' },
+  { key: 'totalloss', label: 'אובדן גמור', candidates: ['4e6b9724-4c1e-43f0-909a-154d4cc4e046'], search: 'רכב אובדן גמור' },
+  { key: 'pimport', label: 'יבוא אישי', candidates: ['03adc637-b6fe-402b-9937-7c3d3afc9140'], search: 'כלי רכב יבוא אישי' },
+];
+
 const CAT = ['--series-1','--series-2','--series-3','--series-4','--series-5','--series-6','--series-7'];
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const fmt = n => n.toLocaleString('he-IL');
 const UNKNOWN = 'לא ידוע';
+const MODELS = { oct: { name: 'OCTAVIA', label: 'אוקטביה', title: 'סקודה אוקטביה — כל הדגמים' },
+                 fm: { name: 'FORMENTOR', label: 'פורמנטור', title: 'קופרה פורמנטור' } };
 
-const state = { oct: null, fm: null, specOk: false };
+const state = { oct: null, fm: null, sources: {} };
 
 // ---------- data fetching ----------
 
-async function fetchPage(params) {
-  const qs = new URLSearchParams({ resource_id: params.resource_id, limit: params.limit, offset: params.offset });
-  if (params.q) qs.set('q', params.q);
-  if (params.filters) qs.set('filters', JSON.stringify(params.filters));
-  if (params.fields) qs.set('fields', params.fields);
-  const res = await fetch(`${API}?${qs}`);
+async function api(action, params) {
+  const qs = new URLSearchParams(params);
+  const res = await fetch(`${API_BASE}${action}?${qs}`);
   if (!res.ok) throw new Error(`HTTP ${res.status} מהשרת של data.gov.il`);
   const json = await res.json();
   if (!json.success) throw new Error('ה־API החזיר שגיאה');
   return json.result;
+}
+
+async function fetchPage(params) {
+  const p = { resource_id: params.resource_id, limit: params.limit, offset: params.offset || 0 };
+  if (params.q) p.q = params.q;
+  if (params.filters) p.filters = JSON.stringify(params.filters);
+  if (params.fields) p.fields = params.fields;
+  return api('datastore_search', p);
 }
 
 async function fetchAllRecords(params, onProgress) {
@@ -270,14 +213,44 @@ async function fetchAllRecords(params, onProgress) {
 }
 
 const norm = v => String(v == null ? '' : v).trim().toUpperCase();
-const isOctavia = r => norm(r.kinuy_mishari).includes('OCTAVIA');
-const isFormentor = r => norm(r.kinuy_mishari).includes('FORMENTOR');
+const numKey = v => { const n = Number(v); return Number.isFinite(n) ? String(n) : norm(v); };
+
+// full-text match: the extra datasets differ in schema, so scan every field for the model name
+const recordMentions = (r, name) => Object.values(r).some(v => norm(v).includes(name));
+
+// ---------- source discovery ----------
+// probe a candidate resource id; if none works, search the CKAN catalog by keywords
+
+async function probeResource(id) {
+  const result = await fetchPage({ resource_id: id, limit: 1 });
+  return { id, total: result.total, fields: (result.fields || []).map(f => f.id) };
+}
+
+async function resolveSource(src) {
+  for (const id of src.candidates) {
+    try { return await probeResource(id); } catch (e) { /* wrong guess — fall through to catalog search */ }
+  }
+  try {
+    const found = await api('package_search', { q: src.search, rows: 15 });
+    const tried = new Set(src.candidates);
+    let probes = 0;
+    for (const pkg of found.results || []) {
+      for (const res of pkg.resources || []) {
+        if (!res.datastore_active || tried.has(res.id) || probes >= 10) continue;
+        tried.add(res.id); probes++;
+        try {
+          const probe = await probeResource(res.id);
+          if (probe.fields.some(f => /mispar_rechev|misgeret/i.test(f))) return probe;
+        } catch (e) { /* keep looking */ }
+      }
+    }
+  } catch (e) { /* catalog unavailable */ }
+  return null;
+}
 
 // spec join key: manufacturer code + model code + production year
-const numKey = v => { const n = Number(v); return Number.isFinite(n) ? String(n) : norm(v); };
-const specKey = r => `${numKey(r.tozeret_cd)}|${numKey(r.degem_cd)}|${numKey(r.shnat_yitzur)}`;
+const specKey = r => `${numKey(r.tozeret_cd)}${SEP}${numKey(r.degem_cd)}${SEP}${numKey(r.shnat_yitzur)}`;
 
-// pull the model-spec rows for every manufacturer code we saw, keyed for the join
 async function fetchSpecs(records, onProgress) {
   const codes = [...new Set(records.map(r => r.tozeret_cd).filter(v => v != null && v !== ''))];
   const map = new Map();
@@ -291,17 +264,32 @@ async function fetchSpecs(records, onProgress) {
   return map;
 }
 
-function enrich(records, specMap) {
+// ---------- enrichment ----------
+
+const asNum = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+
+function enrich(records, specMap, importSet) {
   for (const r of records) {
-    const spec = specMap && specMap.get(specKey(r));
-    const cc = spec && Number(spec.nefach_manoa);
-    r._cc = Number.isFinite(cc) && cc > 0 ? cc : null;
-    const hp = spec && Number(spec.koah_sus);
-    r._hp = Number.isFinite(hp) && hp > 0 ? hp : null;
+    const spec = (specMap && specMap.get(specKey(r))) || {};
+    r._cc = asNum(spec.nefach_manoa);
+    r._hp = asNum(spec.koah_sus);
+    r._co2 = asNum(spec.kamut_CO2 ?? spec.kamut_co2);
+    r._airbags = spec.mispar_kariot_avir != null && spec.mispar_kariot_avir !== '' ? String(spec.mispar_kariot_avir) : UNKNOWN;
+    r._hanaa = String(spec.hanaa_nm || '').trim() || UNKNOWN;
+    r._gear = spec.automatic_ind == null || spec.automatic_ind === '' ? UNKNOWN : (Number(spec.automatic_ind) ? 'אוטומטית' : 'ידנית');
+    r._tech = String(spec.technologiat_hanaa_nm || '').trim() || UNKNOWN;
     r._roadYear = /^\d{4}/.test(String(r.moed_aliya_lakvish || '')) ? String(r.moed_aliya_lakvish).slice(0, 4) : UNKNOWN;
     r._trim = String(r.ramat_gimur || '').trim() || 'לא צוין';
     r._year = String(r.shnat_yitzur || UNKNOWN);
+    r._import = importSet ? importSet.has(numKey(r.mispar_rechev)) : false;
   }
+}
+
+// year a vehicle left the road, from whatever date field the inactive dataset exposes
+function offRoadYear(r) {
+  const k = Object.keys(r).find(key => /bitul|off|yerida/i.test(key) && /^\d{4}/.test(String(r[key] || '')));
+  if (k) return String(r[k]).slice(0, 4);
+  return UNKNOWN;
 }
 
 // ---------- aggregation ----------
@@ -316,8 +304,12 @@ function countBy(records, keyFn) {
 }
 const byCountDesc = m => [...m.entries()].sort((a, b) => b[1] - a[1]);
 const byKeyAsc = m => [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true }));
+const avg = (records, f) => {
+  const vals = records.map(f).filter(v => v != null);
+  return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+};
 
-function aggregate(records) {
+function aggregate(records, extras) {
   return {
     total: records.length,
     years: byKeyAsc(countBy(records, r => r._year)),
@@ -327,6 +319,18 @@ function aggregate(records) {
     ccs: byCountDesc(countBy(records, r => r._cc ? `${fmt(r._cc)} סמ״ק` : UNKNOWN)),
     colors: byCountDesc(countBy(records, r => String(r.tzeva_rechev || UNKNOWN).trim() || UNKNOWN)),
     roadYears: byKeyAsc(countBy(records, r => r._roadYear)),
+    hanaa: byCountDesc(countBy(records, r => r._hanaa)),
+    gears: byCountDesc(countBy(records, r => r._gear)),
+    techs: byCountDesc(countBy(records, r => r._tech)),
+    airbags: byKeyAsc(countBy(records, r => r._airbags)),
+    zihum: byKeyAsc(countBy(records, r => String(r.kvutzat_zihum ?? UNKNOWN))),
+    safety: byKeyAsc(countBy(records, r => String(r.ramat_eivzur_betihuty ?? UNKNOWN))),
+    avgHp: avg(records, r => r._hp),
+    avgCo2: avg(records, r => r._co2),
+    importCount: records.filter(r => r._import).length,
+    inactive: extras.inactive ? { total: extras.inactive.length, byYear: byKeyAsc(countBy(extras.inactive, offRoadYear)) } : null,
+    totalLoss: extras.totalloss ? extras.totalloss.length : null,
+    importTotal: extras.pimport ? extras.pimport.length : null,
   };
 }
 
@@ -433,17 +437,20 @@ function renderBars(mountId, entries, tipLabel) {
   });
 }
 
-// horizontal bars for top colors: single hue, count labels in ink
-function renderHBars(mountId, entries, topN) {
-  const top = entries.slice(0, topN);
-  const rest = entries.slice(topN).reduce((s, [, c]) => s + c, 0);
+// horizontal bars: single hue, count labels in ink
+function renderHBars(mountId, entries, topN, prefix) {
+  const known = entries.filter(([k]) => k !== UNKNOWN);
+  const top = known.slice(0, topN);
+  const rest = known.slice(topN).reduce((s, [, c]) => s + c, 0);
   if (rest > 0) top.push(['אחר', rest]);
+  if (!top.length) { document.getElementById(mountId).innerHTML = `<p class="rawmeta">אין נתונים</p>`; return; }
   const max = Math.max(...top.map(([, c]) => c), 1);
   document.getElementById(mountId).innerHTML = top.map(([name, count]) => {
     const w = Math.max(count / max * 100, 1.5);
     const bg = name === 'אחר' ? 'var(--other)' : 'var(--seq)';
-    return `<div class="hbar" title="${name}: ${fmt(count)}">
-      <span class="name">${name}</span>
+    const display = prefix && name !== 'אחר' ? `${prefix} ${name}` : name;
+    return `<div class="hbar" title="${display}: ${fmt(count)}">
+      <span class="name">${display}</span>
       <div><div class="track" style="width:${w}%;background:${bg}"></div></div>
       <span class="cnt">${fmt(count)}</span>
     </div>`;
@@ -459,9 +466,13 @@ const RAW_COLS = [
   ['degem_nm', 'קוד דגם'],
   ['ccText', 'נפח מנוע'],
   ['hpText', 'כוח סוס'],
+  ['_hanaa', 'הנעה'],
+  ['_gear', 'תיבת הילוכים'],
+  ['_airbags', 'כריות אוויר'],
   ['baalut', 'בעלות'],
   ['tzeva_rechev', 'צבע'],
   ['sug_delek_nm', 'סוג דלק'],
+  ['importText', 'יבוא אישי'],
   ['moed_aliya_lakvish', 'עלייה לכביש'],
   ['tokef_dt', 'תוקף רישוי'],
   ['kvutzat_zihum', 'קב׳ זיהום'],
@@ -470,6 +481,7 @@ const RAW_COLS = [
 const cell = (r, key) => {
   if (key === 'ccText') return r._cc ? fmt(r._cc) : '—';
   if (key === 'hpText') return r._hp ? fmt(r._hp) : '—';
+  if (key === 'importText') return r._import ? 'כן' : '';
   const v = r[key];
   if (v == null || v === '') return '—';
   return String(v).replace(/T00:00:00(\.\d+)?/, '');
@@ -494,8 +506,58 @@ function renderRaw(key) {
 
 // ---------- rendering a model section ----------
 
+function donutBlock(title, key, slug) {
+  return `<div>
+    <p class="chart-title">${title}</p>
+    <div class="donut-box"><div id="donut-${slug}-${key}"></div><ul class="legend" id="legend-${slug}-${key}"></ul></div>
+  </div>`;
+}
+
+function sectionSkeleton(key, title) {
+  return `
+    <h2>${title}</h2>
+    <p class="note" id="note-${key}"></p>
+    <div class="mini" id="mini-${key}"></div>
+    <div class="charts">
+      ${donutBlock('התפלגות לפי רמת גימור', key, 'trim')}
+      <div><p class="chart-title">התפלגות לפי שנתון (שנת ייצור)</p><div id="bars-year-${key}"></div></div>
+    </div>
+    <div class="charts3">
+      ${donutBlock('בעלות', key, 'own')}
+      ${donutBlock('נפח מנוע', key, 'cc')}
+      ${donutBlock('סוג דלק', key, 'fuel')}
+    </div>
+    <div class="charts3">
+      ${donutBlock('הנעה', key, 'hanaa')}
+      ${donutBlock('תיבת הילוכים', key, 'gear')}
+      ${donutBlock('טכנולוגיית הנעה', key, 'tech')}
+    </div>
+    <div class="charts">
+      <div><p class="chart-title">צבעים נפוצים</p><div class="hbars" id="colors-${key}"></div></div>
+      <div><p class="chart-title">עלייה לכביש — לפי שנה</p><div id="bars-road-${key}"></div></div>
+    </div>
+    <div class="charts3">
+      <div><p class="chart-title">קבוצת זיהום</p><div class="hbars" id="zihum-${key}"></div></div>
+      <div><p class="chart-title">רמת אבזור בטיחותי</p><div class="hbars" id="safety-${key}"></div></div>
+      <div><p class="chart-title">כריות אוויר</p><div class="hbars" id="airbags-${key}"></div></div>
+    </div>
+    <h3>ירידה מהכביש (הצלבה עם מאגר הרכבים הלא פעילים)</h3>
+    <div class="charts">
+      <div class="mini" style="grid-template-columns:1fr" id="off-tiles-${key}"></div>
+      <div><p class="chart-title">ירדו מהכביש — לפי שנה</p><div id="bars-off-${key}"></div></div>
+    </div>
+    <details>
+      <summary>נתונים מלאים לפי רכב (מספר רישוי, נפח, בעלות, עלייה לכביש ועוד)</summary>
+      <div style="margin-top:8px"><input class="search" id="search-${key}" placeholder="חיפוש: מספר רישוי / גימור / צבע / בעלות…"></div>
+      <div class="rawwrap"><div id="raw-${key}"></div></div>
+      <p class="rawmeta" id="rawmeta-${key}"></p>
+    </details>`;
+}
+
 function renderModel(key, agg, noteText) {
-  document.getElementById('sec-' + key).hidden = false;
+  const sec = document.getElementById('sec-' + key);
+  sec.innerHTML = sectionSkeleton(key, MODELS[key].title);
+  sec.hidden = false;
   document.getElementById('note-' + key).textContent = noteText;
   document.getElementById('tile-' + key).textContent = fmt(agg.total);
 
@@ -506,16 +568,44 @@ function renderModel(key, agg, noteText) {
   document.getElementById('mini-' + key).innerHTML = `
     <div class="tile"><div class="label">בבעלות פרטית</div><div class="value">${privateCount ? pct(privateCount[1]) : '—'}</div></div>
     <div class="tile"><div class="label">נפח מנוע נפוץ</div><div class="value">${topCc ? topCc[0] : '—'}</div></div>
-    <div class="tile"><div class="label">השנתון הנפוץ</div><div class="value">${topYear ? `${topYear[0]} (${fmt(topYear[1])})` : '—'}</div></div>`;
+    <div class="tile"><div class="label">השנתון הנפוץ</div><div class="value">${topYear ? `${topYear[0]} (${fmt(topYear[1])})` : '—'}</div></div>
+    <div class="tile"><div class="label">כוח סוס ממוצע</div><div class="value">${agg.avgHp ? fmt(Math.round(agg.avgHp)) : '—'}</div></div>
+    <div class="tile"><div class="label">פליטת CO₂ ממוצעת</div><div class="value">${agg.avgCo2 ? fmt(Math.round(agg.avgCo2)) + ' גר׳/ק״מ' : '—'}</div></div>
+    <div class="tile"><div class="label">ביבוא אישי (מהצלבה)</div><div class="value">${agg.importCount ? fmt(agg.importCount) : (agg.importTotal != null ? '0' : '—')}</div></div>`;
 
   renderDonut('donut-trim-' + key, 'legend-trim-' + key, agg.trims, agg.total, 'התפלגות לפי רמת גימור');
   renderBars('bars-year-' + key, agg.years, 'שנתון');
   renderDonut('donut-own-' + key, 'legend-own-' + key, agg.owners, agg.total, 'התפלגות לפי בעלות');
   renderDonut('donut-cc-' + key, 'legend-cc-' + key, agg.ccs, agg.total, 'התפלגות לפי נפח מנוע');
   renderDonut('donut-fuel-' + key, 'legend-fuel-' + key, agg.fuels, agg.total, 'התפלגות לפי סוג דלק');
+  renderDonut('donut-hanaa-' + key, 'legend-hanaa-' + key, agg.hanaa, agg.total, 'התפלגות לפי הנעה');
+  renderDonut('donut-gear-' + key, 'legend-gear-' + key, agg.gears, agg.total, 'התפלגות לפי תיבת הילוכים');
+  renderDonut('donut-tech-' + key, 'legend-tech-' + key, agg.techs, agg.total, 'התפלגות לפי טכנולוגיית הנעה');
   renderHBars('colors-' + key, agg.colors, 8);
   renderBars('bars-road-' + key, agg.roadYears, 'עלו לכביש בשנת');
+  renderHBars('zihum-' + key, agg.zihum, 8, 'קבוצה');
+  renderHBars('safety-' + key, agg.safety, 8, 'רמה');
+  renderHBars('airbags-' + key, agg.airbags, 8);
+
+  const offTiles = document.getElementById('off-tiles-' + key);
+  if (agg.inactive) {
+    offTiles.innerHTML = `
+      <div class="tile"><div class="label">ירדו מהכביש (מצטבר במאגר)</div><div class="value">${fmt(agg.inactive.total)}</div></div>
+      <div class="tile"><div class="label">מזה באובדן גמור</div><div class="value">${agg.totalLoss != null ? fmt(agg.totalLoss) : '—'}</div></div>`;
+    renderBars('bars-off-' + key, agg.inactive.byYear, 'ירדו בשנת');
+  } else {
+    offTiles.innerHTML = `<div class="tile"><div class="label">מאגר הרכבים הלא פעילים</div><div class="value">לא זמין</div></div>`;
+    document.getElementById('bars-off-' + key).innerHTML = `<p class="rawmeta">המאגר לא אותר בריצה זו.</p>`;
+  }
+
   renderRaw(key);
+  document.getElementById('search-' + key).addEventListener('input', () => renderRaw(key));
+}
+
+function renderSources() {
+  const el = document.getElementById('sources');
+  el.innerHTML = Object.values(state.sources).map(s =>
+    `<span class="chip ${s.ok ? 'ok' : 'fail'}" title="${s.detail || ''}">${s.label}${s.count != null ? ' — ' + fmt(s.count) : ''}</span>`).join('');
 }
 
 // ---------- Excel export (SpreadsheetML 2003 — opens natively in Excel) ----------
@@ -537,41 +627,54 @@ function modelSheets(label, data) {
   const cross = () => {
     const m = new Map();
     for (const r of data.records) {
-      const k = r._year + '\u0000' + r._trim;
+      const k = r._year + SEP + r._trim;
       m.set(k, (m.get(k) || 0) + 1);
     }
     return [...m.entries()]
-      .map(([k, c]) => { const [y, t] = k.split('\u0000'); return [y, t, c]; })
+      .map(([k, c]) => { const [y, t] = k.split(SEP); return [y, t, c]; })
       .sort((a, b) => a[0].localeCompare(b[0], 'en', { numeric: true }) || b[2] - a[2]);
   };
   const pair = entries => entries.map(([k, c]) => [k, c]);
   const raw = data.records.map(r => [
     String(r.mispar_rechev ?? ''), r._year, r._trim, String(r.degem_nm ?? ''),
-    r._cc ?? '', r._hp ?? '',
-    String(r.baalut ?? ''), String(r.tzeva_rechev ?? ''), String(r.sug_delek_nm ?? ''),
+    r._cc ?? '', r._hp ?? '', r._hanaa, r._gear, r._airbags, r._co2 ?? '',
+    String(r.baalut ?? ''), String(r.tzeva_rechev ?? ''), String(r.sug_delek_nm ?? ''), r._import ? 'כן' : '',
     String(r.moed_aliya_lakvish ?? ''), cell(r, 'mivchan_acharon_dt'), cell(r, 'tokef_dt'),
     String(r.kvutzat_zihum ?? ''), String(r.ramat_eivzur_betihuty ?? ''),
   ]);
-  return [
+  const sheets = [
     sheet(label + ' - שנתון', ['שנתון', 'כמות'], pair(agg.years)),
     sheet(label + ' - גימור', ['רמת גימור', 'כמות'], pair(agg.trims)),
     sheet(label + ' - שנתון וגימור', ['שנתון', 'רמת גימור', 'כמות'], cross()),
     sheet(label + ' - בעלות', ['בעלות', 'כמות'], pair(agg.owners)),
     sheet(label + ' - נפח מנוע', ['נפח מנוע', 'כמות'], pair(agg.ccs)),
     sheet(label + ' - סוג דלק', ['סוג דלק', 'כמות'], pair(agg.fuels)),
+    sheet(label + ' - הנעה', ['הנעה', 'כמות'], pair(agg.hanaa)),
+    sheet(label + ' - תיבת הילוכים', ['תיבת הילוכים', 'כמות'], pair(agg.gears)),
+    sheet(label + ' - טכנולוגיית הנעה', ['טכנולוגיה', 'כמות'], pair(agg.techs)),
+    sheet(label + ' - כריות אוויר', ['כריות אוויר', 'כמות'], pair(agg.airbags)),
+    sheet(label + ' - קבוצת זיהום', ['קבוצת זיהום', 'כמות'], pair(agg.zihum)),
+    sheet(label + ' - אבזור בטיחות', ['רמת אבזור', 'כמות'], pair(agg.safety)),
     sheet(label + ' - צבע', ['צבע', 'כמות'], pair(agg.colors)),
     sheet(label + ' - עלייה לכביש', ['שנת עלייה לכביש', 'כמות'], pair(agg.roadYears)),
-    sheet(label + ' - גולמי', ['מספר רישוי', 'שנתון', 'רמת גימור', 'קוד דגם', 'נפח מנוע', 'כוח סוס', 'בעלות', 'צבע',
-      'סוג דלק', 'עלייה לכביש', 'מבחן אחרון', 'תוקף רישוי', 'קבוצת זיהום', 'אבזור בטיחות'], raw),
   ];
+  if (agg.inactive) sheets.push(sheet(label + ' - ירדו מהכביש', ['שנה', 'כמות'], pair(agg.inactive.byYear)));
+  sheets.push(sheet(label + ' - גולמי', ['מספר רישוי', 'שנתון', 'רמת גימור', 'קוד דגם', 'נפח מנוע', 'כוח סוס', 'הנעה',
+    'תיבת הילוכים', 'כריות אוויר', 'CO2', 'בעלות', 'צבע', 'סוג דלק', 'יבוא אישי', 'עלייה לכביש', 'מבחן אחרון',
+    'תוקף רישוי', 'קבוצת זיהום', 'אבזור בטיחות'], raw));
+  return sheets;
 }
 
 function buildExcel() {
+  const summaryRows = [];
+  for (const key of ['oct', 'fm']) {
+    const agg = state[key].agg;
+    summaryRows.push([MODELS[key].title, agg.total,
+      agg.inactive ? agg.inactive.total : '', agg.totalLoss ?? '', agg.importTotal ?? '',
+      agg.avgHp ? Math.round(agg.avgHp) : '', agg.avgCo2 ? Math.round(agg.avgCo2) : '']);
+  }
   const sheets = [
-    sheet('סיכום', ['דגם', 'סה"כ על הכביש'], [
-      ['סקודה אוקטביה (כל הדגמים)', state.oct.agg.total],
-      ['קופרה פורמנטור', state.fm.agg.total],
-    ]),
+    sheet('סיכום', ['דגם', 'על הכביש', 'ירדו מהכביש', 'אובדן גמור', 'יבוא אישי', 'כ"ס ממוצע', 'CO2 ממוצע'], summaryRows),
     ...modelSheets('אוקטביה', state.oct),
     ...modelSheets('פורמנטור', state.fm),
   ];
@@ -599,36 +702,68 @@ async function run() {
   const btn = document.getElementById('btn-fetch');
   btn.disabled = true;
   setStatus('מתחבר ל־data.gov.il…');
+  state.sources = {};
   try {
-    let octRecords, fmRecords, specMap;
+    let octRecords, fmRecords, specMap, extraData;
     if (new URLSearchParams(location.search).get('demo') === '1') {
-      ({ octRecords, fmRecords, specMap } = demoData());
-      state.specOk = true;
+      ({ octRecords, fmRecords, specMap, extraData } = demoData());
+      state.sources.active = { label: 'רכבים פעילים', ok: true, count: octRecords.length + fmRecords.length };
+      state.sources.spec = { label: 'מפרטי דגמים', ok: true };
+      for (const src of EXTRA_SOURCES) state.sources[src.key] = { label: src.label, ok: true, count: extraData.oct[src.key].length + extraData.fm[src.key].length };
     } else {
       const prog = name => (got, total) => setStatus(`מושך ${name}: ${fmt(got)} מתוך ${fmt(total)} רשומות…`);
       octRecords = await fetchAllRecords({ resource_id: RESOURCE_ID, q: 'OCTAVIA', fields: FIELDS }, prog('אוקטביה'));
       fmRecords = await fetchAllRecords({ resource_id: RESOURCE_ID, q: 'FORMENTOR', fields: FIELDS }, prog('פורמנטור'));
+      state.sources.active = { label: 'רכבים פעילים', ok: true, count: octRecords.length + fmRecords.length };
+
       try {
-        setStatus('מושך מפרטי דגמים (נפח מנוע, כוח סוס)…');
+        setStatus('מושך מפרטי דגמים (נפח, כ"ס, הנעה, כריות)…');
         specMap = await fetchSpecs([...octRecords, ...fmRecords], () => {});
-        state.specOk = specMap.size > 0;
+        state.sources.spec = { label: 'מפרטי דגמים', ok: specMap.size > 0 };
       } catch (e) {
         specMap = null;
-        state.specOk = false;
+        state.sources.spec = { label: 'מפרטי דגמים', ok: false, detail: e.message };
+      }
+
+      extraData = { oct: {}, fm: {} };
+      for (const src of EXTRA_SOURCES) {
+        try {
+          setStatus(`מאתר את מאגר "${src.label}"…`);
+          const resolved = await resolveSource(src);
+          if (!resolved) throw new Error('לא אותר בקטלוג');
+          setStatus(`מושך "${src.label}"…`);
+          const all = [];
+          for (const name of ['OCTAVIA', 'FORMENTOR']) {
+            const rows = await fetchAllRecords({ resource_id: resolved.id, q: name }, prog(src.label));
+            all.push(...rows.map(r => ({ r, name })));
+          }
+          extraData.oct[src.key] = all.filter(x => x.name === 'OCTAVIA' && recordMentions(x.r, 'OCTAVIA')).map(x => x.r);
+          extraData.fm[src.key] = all.filter(x => x.name === 'FORMENTOR' && recordMentions(x.r, 'FORMENTOR')).map(x => x.r);
+          state.sources[src.key] = { label: src.label, ok: true, count: extraData.oct[src.key].length + extraData.fm[src.key].length, detail: 'resource: ' + resolved.id };
+        } catch (e) {
+          extraData.oct[src.key] = null;
+          extraData.fm[src.key] = null;
+          state.sources[src.key] = { label: src.label, ok: false, detail: e.message };
+        }
       }
     }
+    renderSources();
 
-    const octavia = octRecords.filter(isOctavia);
-    const formentor = fmRecords.filter(isFormentor);
-    enrich(octavia, specMap);
-    enrich(formentor, specMap);
-    state.oct = { records: octavia, agg: aggregate(octavia) };
-    state.fm = { records: formentor, agg: aggregate(formentor) };
+    const octavia = octRecords.filter(r => norm(r.kinuy_mishari).includes('OCTAVIA'));
+    const formentor = fmRecords.filter(r => norm(r.kinuy_mishari).includes('FORMENTOR'));
+    const importSets = {};
+    for (const key of ['oct', 'fm']) {
+      const imp = extraData[key].pimport;
+      importSets[key] = imp ? new Set(imp.map(r => numKey(r.mispar_rechev)).filter(k => k && k !== '')) : null;
+    }
+    enrich(octavia, specMap, importSets.oct);
+    enrich(formentor, specMap, importSets.fm);
+    state.oct = { records: octavia, agg: aggregate(octavia, extraData.oct) };
+    state.fm = { records: formentor, agg: aggregate(formentor, extraData.fm) };
 
-    const specNote = state.specOk ? '' : ' נפח מנוע וכוח סוס לא היו זמינים ממאגר המפרטים בריצה זו.';
     document.getElementById('tiles').hidden = false;
-    renderModel('oct', state.oct.agg, 'כל רכבי האוקטביה הפעילים במאגר, בכל רמות הגימור (כולל RS).' + specNote);
-    renderModel('fm', state.fm.agg, 'כל רכבי הפורמנטור הפעילים במאגר.' + specNote);
+    renderModel('oct', state.oct.agg, 'כל רכבי האוקטביה הפעילים במאגר, בכל רמות הגימור (כולל RS), מוצלבים עם מפרטי הדגמים ומאגרי הירידה מהכביש והיבוא האישי.');
+    renderModel('fm', state.fm.agg, 'כל רכבי הפורמנטור הפעילים במאגר, מוצלבים עם המאגרים הנוספים.');
     document.getElementById('btn-excel').disabled = false;
     document.getElementById('ts').textContent = 'נמשך: ' + new Date().toLocaleString('he-IL');
     setStatus(`הושלם — אוקטביה: ${fmt(state.oct.agg.total)} | פורמנטור: ${fmt(state.fm.agg.total)}`);
@@ -648,9 +783,16 @@ function demoData() {
   const OWNERS = [['פרטי', .72], ['ליסינג', .14], ['השכרה', .08], ['חברה', .06]];
   const COLORS = [['לבן', .3], ['אפור מטל', .2], ['שחור', .15], ['כסף', .12], ['כחול', .1], ['אדום', .08], ['ירוק', .05]];
   const specMap = new Map();
-  const mk = (kinuy, gimur, year, cd, cc, fuel) => {
+  const mkSpec = (tozeret_cd, cd, year, cc, awd) => {
+    specMap.set(`${tozeret_cd}${SEP}${cd}${SEP}${year}`, {
+      tozeret_cd, degem_cd: cd, shnat_yitzur: year, nefach_manoa: cc, koah_sus: Math.round(cc / 8),
+      hanaa_nm: awd ? '4X4' : 'קדמית', automatic_ind: rnd() < .9 ? 1 : 0, mispar_kariot_avir: pick([['6', .5], ['7', .3], ['9', .2]], rnd()),
+      kamut_CO2: Math.round(120 + rnd() * 60), technologiat_hanaa_nm: cc > 1600 ? 'בנזין' : pick([['בנזין', .7], ['היברידי', .3]], rnd()),
+    });
+  };
+  const mk = (kinuy, gimur, year, cd, cc, fuel, awd) => {
     const tozeret_cd = kinuy === 'OCTAVIA' ? 819 : 990;
-    specMap.set(`${tozeret_cd}|${cd}|${year}`, { tozeret_cd, degem_cd: cd, shnat_yitzur: year, nefach_manoa: cc, koah_sus: Math.round(cc / 8) });
+    mkSpec(tozeret_cd, cd, year, cc, awd);
     const m = String(1 + Math.floor(rnd() * 12)).padStart(2, '0');
     return {
       mispar_rechev: String(10000000 + Math.floor(rnd() * 89999999)),
@@ -665,31 +807,44 @@ function demoData() {
   const octRecords = [], fmRecords = [];
   for (let y = 2014; y <= 2026; y++) {
     const nRS = Math.round(40 + rnd() * 420);
-    for (let i = 0; i < nRS; i++) octRecords.push(mk('OCTAVIA', rnd() < 0.8 ? 'RS' : 'RS 245', y, 35, 1984, 'בנזין'));
+    for (let i = 0; i < nRS; i++) octRecords.push(mk('OCTAVIA', rnd() < 0.8 ? 'RS' : 'RS 245', y, 35, 1984, 'בנזין', false));
     const trims = [['AMBITION', 900, 21, 1498], ['STYLE', 600, 22, 1498], ['ELEGANCE', 350, 23, 1798],
       ['ACTIVE', 200, 24, 999], ['SPORTLINE', 120, 25, 1498], ['SELECTION', 80, 26, 1498]];
     for (const [t, base, cd, cc] of trims) {
       const n = Math.round(base * (0.5 + rnd()));
-      for (let i = 0; i < n; i++) octRecords.push(mk('OCTAVIA', t, y, cd, cc, rnd() < .85 ? 'בנזין' : 'דיזל'));
+      for (let i = 0; i < n; i++) octRecords.push(mk('OCTAVIA', t, y, cd, cc, rnd() < .85 ? 'בנזין' : 'דיזל', false));
     }
   }
   for (let y = 2021; y <= 2026; y++) {
-    const trims = [['VZ', 0.4, 50, 1984], ['V', 0.3, 51, 1498], ['VZ EDITION', 0.15, 52, 1984], ['TRIBE', 0.15, 53, 1498]];
+    const trims = [['VZ', 0.4, 50, 1984, true], ['V', 0.3, 51, 1498, false], ['VZ EDITION', 0.15, 52, 1984, true], ['TRIBE', 0.15, 53, 1498, false]];
     const n = Math.round(500 + rnd() * 2200);
     for (let i = 0; i < n; i++) {
       let p = rnd(), acc = 0, chosen = trims[0];
       for (const t of trims) { acc += t[1]; if (p <= acc) { chosen = t; break; } }
-      fmRecords.push(mk('FORMENTOR', chosen[0], y, chosen[2], chosen[3], rnd() < .7 ? 'בנזין' : 'היברידי'));
+      fmRecords.push(mk('FORMENTOR', chosen[0], y, chosen[2], chosen[3], rnd() < .7 ? 'בנזין' : 'היברידי', chosen[4]));
     }
   }
-  return { octRecords, fmRecords, specMap };
+  const inactive = (kinuy, n, y0, y1) => Array.from({ length: n }, () => ({
+    mispar_rechev: String(10000000 + Math.floor(rnd() * 89999999)), kinuy_mishari: kinuy,
+    bitul_dt: `${y0 + Math.floor(rnd() * (y1 - y0 + 1))}-06-01`,
+  }));
+  const extraData = {
+    oct: {
+      inactive: inactive('OCTAVIA', 5200, 2015, 2026),
+      totalloss: inactive('OCTAVIA', 430, 2015, 2026),
+      pimport: octRecords.slice(0, 60).map(r => ({ mispar_rechev: r.mispar_rechev, kinuy_mishari: 'OCTAVIA' })),
+    },
+    fm: {
+      inactive: inactive('FORMENTOR', 260, 2021, 2026),
+      totalloss: inactive('FORMENTOR', 55, 2021, 2026),
+      pimport: fmRecords.slice(0, 25).map(r => ({ mispar_rechev: r.mispar_rechev, kinuy_mishari: 'FORMENTOR' })),
+    },
+  };
+  return { octRecords, fmRecords, specMap, extraData };
 }
 
 document.getElementById('btn-fetch').addEventListener('click', run);
 document.getElementById('btn-excel').addEventListener('click', buildExcel);
-for (const key of ['oct', 'fm']) {
-  document.getElementById('search-' + key).addEventListener('input', () => state[key] && renderRaw(key));
-}
 if (new URLSearchParams(location.search).get('demo') === '1') run();
 </script>
 </body>
