@@ -144,6 +144,12 @@
     <div class="tile"><div class="label">קופרה פורמנטור</div><div class="value" id="tile-fm">—</div></div>
   </div>
 
+  <section class="model" id="sec-compare" hidden>
+    <h2>השוואה ישירה בין הדגמים</h2>
+    <p class="note">כל המדדים מחושבים מהצלבת חמשת המאגרים.</p>
+    <div style="overflow-x:auto"><div id="compare-table"></div></div>
+  </section>
+
   <section class="model" id="sec-oct" hidden></section>
   <section class="model" id="sec-fm" hidden></section>
 
@@ -319,6 +325,21 @@ function aggregate(records, extras) {
     ccs: byCountDesc(countBy(records, r => r._cc ? `${fmt(r._cc)} סמ״ק` : UNKNOWN)),
     colors: byCountDesc(countBy(records, r => String(r.tzeva_rechev || UNKNOWN).trim() || UNKNOWN)),
     roadYears: byKeyAsc(countBy(records, r => r._roadYear)),
+    testValidPct: (() => {
+      if (!records.length) return null;
+      const today = new Date().toISOString().slice(0, 10);
+      return records.filter(r => String(r.tokef_dt || '').slice(0, 10) >= today).length / records.length * 100;
+    })(),
+    avgAgeYears: (() => {
+      const now = Date.now();
+      const vals = records.map(r => {
+        const m = String(r.moed_aliya_lakvish || '').match(/^(\d{4})-?(\d{2})?/);
+        if (!m) return null;
+        const age = (now - new Date(+m[1], m[2] ? +m[2] - 1 : 6, 1).getTime()) / 31557600000;
+        return age >= 0 ? age : null;
+      }).filter(v => v != null);
+      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    })(),
     hanaa: byCountDesc(countBy(records, r => r._hanaa)),
     gears: byCountDesc(countBy(records, r => r._gear)),
     techs: byCountDesc(countBy(records, r => r._tech)),
@@ -329,6 +350,7 @@ function aggregate(records, extras) {
     avgCo2: avg(records, r => r._co2),
     importCount: records.filter(r => r._import).length,
     inactive: extras.inactive ? { total: extras.inactive.length, byYear: byKeyAsc(countBy(extras.inactive, offRoadYear)) } : null,
+    inactiveByShnat: extras.inactive ? byKeyAsc(countBy(extras.inactive, r => String(r.shnat_yitzur || UNKNOWN))) : null,
     totalLoss: extras.totalloss ? extras.totalloss.length : null,
     importTotal: extras.pimport ? extras.pimport.length : null,
   };
@@ -437,6 +459,79 @@ function renderBars(mountId, entries, tipLabel) {
   });
 }
 
+// heatmap year × trim: sequential single-hue ramp, tooltips per cell
+const SEQ_RAMP = ['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95','#0d366b'];
+function renderHeatmap(mountId, records, agg) {
+  const years = agg.years.map(([y]) => y).filter(y => y !== UNKNOWN);
+  const trims = agg.trims.slice(0, 6).map(([t]) => t);
+  const rows = agg.trims.length > 6 ? [...trims, 'אחר'] : trims;
+  if (!years.length || !rows.length) { document.getElementById(mountId).innerHTML = ''; return; }
+  const counts = new Map();
+  for (const r of records) {
+    const t = trims.includes(r._trim) ? r._trim : 'אחר';
+    const k = r._year + SEP + t;
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  const max = Math.max(...counts.values(), 1);
+  const mL = 8, labelW = 140, top = 6, bottom = 24, cellH = 26, gap = 2;
+  const gridW = Math.max(years.length * 34, 300);
+  const W = mL + gridW + labelW, H = top + rows.length * cellH + bottom;
+  const cw = gridW / years.length;
+  let cells = '', labels = '';
+  const cellData = [];
+  rows.forEach((t, ri) => {
+    labels += `<text x="${mL + gridW + 8}" y="${top + ri * cellH + cellH / 2 + 4}" font-size="12" text-anchor="start">${t}</text>`;
+    years.forEach((y, ci) => {
+      const c = counts.get(y + SEP + t) || 0;
+      const idx = c === 0 ? -1 : Math.min(SEQ_RAMP.length - 1, Math.floor(c / max * SEQ_RAMP.length));
+      const fill = idx < 0 ? 'transparent' : SEQ_RAMP[idx];
+      const i = cellData.length;
+      cellData.push({ y, t, c });
+      cells += `<rect data-i="${i}" x="${(mL + ci * cw + gap / 2).toFixed(1)}" y="${top + ri * cellH + gap / 2}" width="${(cw - gap).toFixed(1)}" height="${cellH - gap}" rx="3" fill="${fill}" ${idx < 0 ? `stroke="${cssVar('--grid')}" stroke-width="1"` : ''}></rect>`;
+    });
+  });
+  const xlabels = years.map((y, ci) => `<text x="${(mL + ci * cw + cw / 2).toFixed(1)}" y="${H - 8}" font-size="11" text-anchor="middle">${y}</text>`).join('');
+  const mount = document.getElementById(mountId);
+  mount.innerHTML =
+    `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="direction:ltr" role="img" aria-label="שנתון מול רמת גימור">${cells}${labels}${xlabels}</svg>
+     <p class="rawmeta">כהה יותר = יותר רכבים (מקסימום בתא: ${fmt(max)}). ריחוף על תא מציג את הכמות המדויקת.</p>`;
+  mount.querySelectorAll('rect[data-i]').forEach(el => {
+    const d = cellData[+el.dataset.i];
+    el.addEventListener('mousemove', e => showTip(e, `<b>${d.t} · ${d.y}</b><br>${fmt(d.c)} רכבים`));
+    el.addEventListener('mouseleave', hideTip);
+  });
+}
+
+// percent columns (0–100 scale) for survival by model year
+function renderPctBars(mountId, rows) {
+  if (!rows.length) { document.getElementById(mountId).innerHTML = `<p class="rawmeta">אין נתונים</p>`; return; }
+  const W = 560, H = 220, mL = 8, mR = 8, mT = 18, mB = 26;
+  const iw = W - mL - mR, ih = H - mT - mB;
+  const n = rows.length, step = iw / n;
+  const bw = Math.min(Math.max(step - 2, 3), 46);
+  const color = cssVar('--seq'), grid = cssVar('--grid'), baseline = cssVar('--baseline');
+  const gridLines = [0.25, 0.5, 0.75, 1].map(f =>
+    `<line x1="${mL}" x2="${W - mR}" y1="${mT + ih - f * ih}" y2="${mT + ih - f * ih}" stroke="${grid}" stroke-width="1"></line>`).join('');
+  const bars = rows.map(([year, pct], i) => {
+    const h = Math.max(pct / 100 * ih, 2);
+    const x = mL + i * step + (step - bw) / 2, y = mT + ih - h;
+    const label = n <= 16 ? `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11">${year}</text>` : '';
+    const pctLabel = n <= 16 ? `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="10" class="val">${Math.round(pct)}%</text>` : '';
+    return `<g data-i="${i}"><rect x="${x - 2}" y="${mT}" width="${bw + 4}" height="${ih}" fill="transparent"></rect>
+      <rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="3" fill="${color}"></rect>${label}${pctLabel}</g>`;
+  }).join('');
+  const mount = document.getElementById(mountId);
+  mount.innerHTML =
+    `<svg width="100%" viewBox="0 0 ${W} ${H}" style="direction:ltr" role="img" aria-label="אחוז על הכביש לפי שנתון">${gridLines}${bars}
+     <line x1="${mL}" x2="${W - mR}" y1="${mT + ih}" y2="${mT + ih}" stroke="${baseline}" stroke-width="1"></line></svg>`;
+  mount.querySelectorAll('g[data-i]').forEach(el => {
+    const [year, pct, active, gone] = rows[+el.dataset.i];
+    el.addEventListener('mousemove', e => showTip(e,
+      `<b>שנתון ${year}</b><br>${pct.toFixed(1)}% עדיין על הכביש<br>פעילים: ${fmt(active)} · ירדו: ${fmt(gone)}`));
+    el.addEventListener('mouseleave', hideTip);
+  });
+}
+
 // horizontal bars: single hue, count labels in ink
 function renderHBars(mountId, entries, topN, prefix) {
   const known = entries.filter(([k]) => k !== UNKNOWN);
@@ -522,6 +617,8 @@ function sectionSkeleton(key, title) {
       ${donutBlock('התפלגות לפי רמת גימור', key, 'trim')}
       <div><p class="chart-title">התפלגות לפי שנתון (שנת ייצור)</p><div id="bars-year-${key}"></div></div>
     </div>
+    <p class="chart-title">מפת חום — שנתון × רמת גימור (הצלבה)</p>
+    <div style="margin-bottom:18px; overflow-x:auto" id="heat-${key}"></div>
     <div class="charts3">
       ${donutBlock('בעלות', key, 'own')}
       ${donutBlock('נפח מנוע', key, 'cc')}
@@ -541,10 +638,14 @@ function sectionSkeleton(key, title) {
       <div><p class="chart-title">רמת אבזור בטיחותי</p><div class="hbars" id="safety-${key}"></div></div>
       <div><p class="chart-title">כריות אוויר</p><div class="hbars" id="airbags-${key}"></div></div>
     </div>
-    <h3>ירידה מהכביש (הצלבה עם מאגר הרכבים הלא פעילים)</h3>
+    <h3>ירידה מהכביש ושרידות (הצלבה עם מאגר הרכבים הלא פעילים)</h3>
     <div class="charts">
       <div class="mini" style="grid-template-columns:1fr" id="off-tiles-${key}"></div>
       <div><p class="chart-title">ירדו מהכביש — לפי שנה</p><div id="bars-off-${key}"></div></div>
+    </div>
+    <div class="charts">
+      <div class="mini" style="grid-template-columns:1fr" id="surv-tiles-${key}"></div>
+      <div><p class="chart-title">אחוז שעדיין על הכביש — לפי שנתון</p><div id="surv-${key}"></div></div>
     </div>
     <details>
       <summary>נתונים מלאים לפי רכב (מספר רישוי, נפח, בעלות, עלייה לכביש ועוד)</summary>
@@ -571,7 +672,9 @@ function renderModel(key, agg, noteText) {
     <div class="tile"><div class="label">השנתון הנפוץ</div><div class="value">${topYear ? `${topYear[0]} (${fmt(topYear[1])})` : '—'}</div></div>
     <div class="tile"><div class="label">כוח סוס ממוצע</div><div class="value">${agg.avgHp ? fmt(Math.round(agg.avgHp)) : '—'}</div></div>
     <div class="tile"><div class="label">פליטת CO₂ ממוצעת</div><div class="value">${agg.avgCo2 ? fmt(Math.round(agg.avgCo2)) + ' גר׳/ק״מ' : '—'}</div></div>
-    <div class="tile"><div class="label">ביבוא אישי (מהצלבה)</div><div class="value">${agg.importCount ? fmt(agg.importCount) : (agg.importTotal != null ? '0' : '—')}</div></div>`;
+    <div class="tile"><div class="label">ביבוא אישי (מהצלבה)</div><div class="value">${agg.importCount ? fmt(agg.importCount) : (agg.importTotal != null ? '0' : '—')}</div></div>
+    <div class="tile"><div class="label">גיל ממוצע</div><div class="value">${agg.avgAgeYears != null ? agg.avgAgeYears.toFixed(1) + ' שנים' : '—'}</div></div>
+    <div class="tile"><div class="label">רישוי (טסט) בתוקף</div><div class="value">${agg.testValidPct != null ? agg.testValidPct.toFixed(1) + '%' : '—'}</div></div>`;
 
   renderDonut('donut-trim-' + key, 'legend-trim-' + key, agg.trims, agg.total, 'התפלגות לפי רמת גימור');
   renderBars('bars-year-' + key, agg.years, 'שנתון');
@@ -586,6 +689,7 @@ function renderModel(key, agg, noteText) {
   renderHBars('zihum-' + key, agg.zihum, 8, 'קבוצה');
   renderHBars('safety-' + key, agg.safety, 8, 'רמה');
   renderHBars('airbags-' + key, agg.airbags, 8);
+  renderHeatmap('heat-' + key, state[key].records, agg);
 
   const offTiles = document.getElementById('off-tiles-' + key);
   if (agg.inactive) {
@@ -598,8 +702,60 @@ function renderModel(key, agg, noteText) {
     document.getElementById('bars-off-' + key).innerHTML = `<p class="rawmeta">המאגר לא אותר בריצה זו.</p>`;
   }
 
+  const survTiles = document.getElementById('surv-tiles-' + key);
+  if (agg.inactive && agg.inactiveByShnat) {
+    const goneMap = new Map(agg.inactiveByShnat);
+    const rows = agg.years.filter(([y]) => y !== UNKNOWN).map(([y, act]) => {
+      const gone = goneMap.get(y) || 0;
+      return [y, act / (act + gone) * 100, act, gone];
+    });
+    const overall = agg.total / (agg.total + agg.inactive.total) * 100;
+    survTiles.innerHTML = `<div class="tile"><div class="label">שרידות כוללת — עדיין על הכביש מתוך כל מה שנרשם אי־פעם</div><div class="value">${overall.toFixed(1)}%</div></div>`;
+    renderPctBars('surv-' + key, rows);
+  } else {
+    survTiles.innerHTML = '';
+    document.getElementById('surv-' + key).innerHTML = `<p class="rawmeta">דורש את מאגר הרכבים הלא פעילים.</p>`;
+  }
+
   renderRaw(key);
   document.getElementById('search-' + key).addEventListener('input', () => renderRaw(key));
+}
+
+function modelMetrics(key) {
+  const agg = state[key].agg;
+  const pctOf = (entries, pred) => {
+    const n = entries.filter(([name]) => pred(name)).reduce((s, [, c]) => s + c, 0);
+    return agg.total ? (n / agg.total * 100).toFixed(1) + '%' : '—';
+  };
+  const top = entries => { const e = entries.find(([n]) => n !== UNKNOWN); return e ? e[0] : '—'; };
+  const topYear = [...agg.years].sort((a, b) => b[1] - a[1])[0];
+  const surv = agg.inactive ? (agg.total / (agg.total + agg.inactive.total) * 100).toFixed(1) + '%' : '—';
+  return [
+    ['על הכביש כיום', fmt(agg.total)],
+    ['ירדו מהכביש (מצטבר)', agg.inactive ? fmt(agg.inactive.total) : '—'],
+    ['מזה אובדן גמור', agg.totalLoss != null ? fmt(agg.totalLoss) : '—'],
+    ['שרידות כוללת', surv],
+    ['ביבוא אישי (על הכביש)', fmt(agg.importCount)],
+    ['גיל ממוצע', agg.avgAgeYears != null ? agg.avgAgeYears.toFixed(1) + ' שנים' : '—'],
+    ['כוח סוס ממוצע', agg.avgHp ? fmt(Math.round(agg.avgHp)) : '—'],
+    ['פליטת CO₂ ממוצעת', agg.avgCo2 ? fmt(Math.round(agg.avgCo2)) + ' גר׳/ק״מ' : '—'],
+    ['בעלות פרטית', pctOf(agg.owners, n => n === 'פרטי')],
+    ['רישוי (טסט) בתוקף', agg.testValidPct != null ? agg.testValidPct.toFixed(1) + '%' : '—'],
+    ['הנעה 4X4', pctOf(agg.hanaa, n => /4/.test(n))],
+    ['תיבת הילוכים אוטומטית', pctOf(agg.gears, n => n === 'אוטומטית')],
+    ['נפח מנוע נפוץ', top(agg.ccs)],
+    ['שנתון נפוץ', topYear ? topYear[0] : '—'],
+    ['צבע נפוץ', top(agg.colors)],
+    ['רמת גימור נפוצה', top(agg.trims)],
+  ];
+}
+
+function renderCompare() {
+  const a = modelMetrics('oct'), b = modelMetrics('fm');
+  document.getElementById('compare-table').innerHTML =
+    `<table class="data" style="width:100%"><thead><tr><th>מדד</th><th>סקודה אוקטביה</th><th>קופרה פורמנטור</th></tr></thead>
+     <tbody>${a.map(([label, v], i) => `<tr><td>${label}</td><td>${v}</td><td>${b[i][1]}</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('sec-compare').hidden = false;
 }
 
 function renderSources() {
@@ -658,7 +814,30 @@ function modelSheets(label, data) {
     sheet(label + ' - צבע', ['צבע', 'כמות'], pair(agg.colors)),
     sheet(label + ' - עלייה לכביש', ['שנת עלייה לכביש', 'כמות'], pair(agg.roadYears)),
   ];
+  // year × trim pivot matrix (trims as columns)
+  const trimCols = agg.trims.slice(0, 6).map(([t]) => t);
+  const hasOther = agg.trims.length > 6;
+  const matCounts = new Map();
+  for (const r of data.records) {
+    const t = trimCols.includes(r._trim) ? r._trim : 'אחר';
+    const k = r._year + SEP + t;
+    matCounts.set(k, (matCounts.get(k) || 0) + 1);
+  }
+  const matRows = agg.years.map(([y, total]) => [
+    y, ...trimCols.map(t => matCounts.get(y + SEP + t) || 0),
+    ...(hasOther ? [matCounts.get(y + SEP + 'אחר') || 0] : []), total,
+  ]);
+  sheets.push(sheet(label + ' - מטריצה שנתון×גימור',
+    ['שנתון', ...trimCols, ...(hasOther ? ['אחר'] : []), 'סה"כ'], matRows));
   if (agg.inactive) sheets.push(sheet(label + ' - ירדו מהכביש', ['שנה', 'כמות'], pair(agg.inactive.byYear)));
+  if (agg.inactive && agg.inactiveByShnat) {
+    const goneMap = new Map(agg.inactiveByShnat);
+    sheets.push(sheet(label + ' - שרידות לפי שנתון', ['שנתון', 'פעילים', 'ירדו', '% על הכביש'],
+      agg.years.filter(([y]) => y !== UNKNOWN).map(([y, act]) => {
+        const gone = goneMap.get(y) || 0;
+        return [y, act, gone, Math.round(act / (act + gone) * 1000) / 10];
+      })));
+  }
   sheets.push(sheet(label + ' - גולמי', ['מספר רישוי', 'שנתון', 'רמת גימור', 'קוד דגם', 'נפח מנוע', 'כוח סוס', 'הנעה',
     'תיבת הילוכים', 'כריות אוויר', 'CO2', 'בעלות', 'צבע', 'סוג דלק', 'יבוא אישי', 'עלייה לכביש', 'מבחן אחרון',
     'תוקף רישוי', 'קבוצת זיהום', 'אבזור בטיחות'], raw));
@@ -673,8 +852,10 @@ function buildExcel() {
       agg.inactive ? agg.inactive.total : '', agg.totalLoss ?? '', agg.importTotal ?? '',
       agg.avgHp ? Math.round(agg.avgHp) : '', agg.avgCo2 ? Math.round(agg.avgCo2) : '']);
   }
+  const cmpA = modelMetrics('oct'), cmpB = modelMetrics('fm');
   const sheets = [
     sheet('סיכום', ['דגם', 'על הכביש', 'ירדו מהכביש', 'אובדן גמור', 'יבוא אישי', 'כ"ס ממוצע', 'CO2 ממוצע'], summaryRows),
+    sheet('השוואה', ['מדד', 'אוקטביה', 'פורמנטור'], cmpA.map(([label, v], i) => [label, v, cmpB[i][1]])),
     ...modelSheets('אוקטביה', state.oct),
     ...modelSheets('פורמנטור', state.fm),
   ];
@@ -764,6 +945,7 @@ async function run() {
     document.getElementById('tiles').hidden = false;
     renderModel('oct', state.oct.agg, 'כל רכבי האוקטביה הפעילים במאגר, בכל רמות הגימור (כולל RS), מוצלבים עם מפרטי הדגמים ומאגרי הירידה מהכביש והיבוא האישי.');
     renderModel('fm', state.fm.agg, 'כל רכבי הפורמנטור הפעילים במאגר, מוצלבים עם המאגרים הנוספים.');
+    renderCompare();
     document.getElementById('btn-excel').disabled = false;
     document.getElementById('ts').textContent = 'נמשך: ' + new Date().toLocaleString('he-IL');
     setStatus(`הושלם — אוקטביה: ${fmt(state.oct.agg.total)} | פורמנטור: ${fmt(state.fm.agg.total)}`);
@@ -824,10 +1006,13 @@ function demoData() {
       fmRecords.push(mk('FORMENTOR', chosen[0], y, chosen[2], chosen[3], rnd() < .7 ? 'בנזין' : 'היברידי', chosen[4]));
     }
   }
-  const inactive = (kinuy, n, y0, y1) => Array.from({ length: n }, () => ({
-    mispar_rechev: String(10000000 + Math.floor(rnd() * 89999999)), kinuy_mishari: kinuy,
-    bitul_dt: `${y0 + Math.floor(rnd() * (y1 - y0 + 1))}-06-01`,
-  }));
+  const inactive = (kinuy, n, y0, y1) => Array.from({ length: n }, () => {
+    const shnat = y0 + Math.floor(rnd() * (y1 - y0 + 1));
+    return {
+      mispar_rechev: String(10000000 + Math.floor(rnd() * 89999999)), kinuy_mishari: kinuy,
+      shnat_yitzur: shnat, bitul_dt: `${Math.min(shnat + Math.floor(rnd() * 8), 2026)}-06-01`,
+    };
+  });
   const extraData = {
     oct: {
       inactive: inactive('OCTAVIA', 5200, 2015, 2026),
