@@ -77,9 +77,11 @@ async function seriesOf(dataflow) {
 async function main() {
   if (DISCOVER) await discoverDataflows();
 
-  let series = [];
-  for (const df of ["BIR"]) {
-    try { series = await seriesOf(df); console.log(`${df}: ${series.length} series`); if (series.length) break; }
+  // BR = "BOI interest rate" (the headline policy rate). BIR = bank lending
+  // rates (kept only as a fallback).
+  let series = [], usedDf = null;
+  for (const df of ["BR", "BIR"]) {
+    try { series = await seriesOf(df); console.log(`${df}: ${series.length} series`); if (series.length) { usedDf = df; break; } }
     catch (e) { console.log(`${df} failed: ${e.message}`); }
   }
   if (!series.length) { console.error("ERROR: no series parsed."); process.exit(1); }
@@ -105,7 +107,7 @@ async function main() {
     effectiveDate: chosen.latest.date,
     asOf: new Date().toISOString().slice(0, 10),
     seriesCode: chosen.code, seriesName: chosen.name || null,
-    source: "Bank of Israel — Fusion Edge Server SDMX",
+    source: `Bank of Israel — ${usedDf} dataflow (Fusion Edge Server SDMX)`,
     candidates: series.map((s) => ({ code: s.code, name: s.name || null, value: s.latest.value, date: s.latest.date })),
   };
   await mkdir(dirname(OUT), { recursive: true });
