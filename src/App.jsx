@@ -1,44 +1,25 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Formatting ──────────────────────────────────────────────────────────────
 const pad = (n) => String(n).padStart(2, "0");
-const fmtTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-const fmtDate = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-const fmtDur = (ms) => {
-  if (!ms || ms < 0) return "00:00:00";
-  const s = Math.floor(ms / 1000);
-  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
-};
-const fmtDurShort = (ms) => {
-  if (!ms || ms < 0) return "0ד'";
-  const m = Math.floor(ms / 60000);
-  const h = Math.floor(m / 60);
-  return h > 0 ? `${h}ש' ${m % 60}ד'` : `${m}ד'`;
-};
-const fmtDurDecimal = (ms) => {
-  if (!ms || ms < 0) return "0.00";
-  return (ms / 3600000).toFixed(2);
-};
-
-// ─── Loan (Spitzer) helpers ──────────────────────────────────────────────────
-const fmtMoney = (n) => (Math.round(Number(n) || 0)).toLocaleString("he-IL") + " ₪";
-const fmtPct   = (n) => `${(Number(n) || 0).toFixed(2)}%`;
-const fmtMonth = (d) => `${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+const fmtMoney  = (n) => (Math.round(Number(n) || 0)).toLocaleString("he-IL") + " ₪";
+const fmtMoney1 = (n) => (Number(n) || 0).toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtPct    = (n) => `${(Number(n) || 0).toFixed(2)}%`;
 const fmtDateISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmtMonth  = (d) => `${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
+const fmtDateHe = (s) => { const d = new Date(s); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
 
-// חישוב התשלום החודשי בשיטת שפיצר (תשלום קבוע): P·r / (1-(1+r)^-n)
+// ─── Spitzer (equal-payment) loan math ───────────────────────────────────────
 const spitzerPayment = (balance, annualRatePct, months) => {
   if (!months || months <= 0 || balance <= 0) return 0;
   const r = annualRatePct / 100 / 12;
   if (r === 0) return balance / months;
   return (balance * r) / (1 - Math.pow(1 + r, -months));
 };
+const effectiveRate = (loan, primeOrRate) =>
+  loan.linkedToPrime ? Number(primeOrRate) + Number(loan.spread || 0) : Number(primeOrRate);
 
-// הריבית האפקטיבית לפי הזנת המשתמש (פריים+מרווח או ריבית מלאה)
-const effectiveRate = (loan, value) =>
-  loan.linkedToPrime ? Number(value) + Number(loan.spread || 0) : Number(value);
-
-// בניית לוח סילוקין חודש-אחר-חודש, כולל שינויי ריבית לאורך התקופה
+// Month-by-month amortization, recomputing the payment at each rate change.
 const buildSchedule = (loan, changes) => {
   const rows = [];
   const start = new Date(loan.startDate);
@@ -48,850 +29,546 @@ const buildSchedule = (loan, changes) => {
     const mi = (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth());
     if (mi >= 0 && mi < loan.months) changeByMonth[mi] = effectiveRate(loan, c.value);
   });
-
   let balance = loan.principal;
   let annualRate = effectiveRate(loan, loan.initialValue);
   let payment = spitzerPayment(balance, annualRate, loan.months);
-  let cumInterest = 0;
-
+  let cumInterest = 0, cumPrincipal = 0;
   for (let m = 0; m < loan.months; m++) {
     const remaining = loan.months - m;
     if (changeByMonth[m] != null) {
       annualRate = changeByMonth[m];
-      payment = spitzerPayment(balance, annualRate, remaining); // חישוב מחדש על היתרה והתקופה שנותרה
+      payment = spitzerPayment(balance, annualRate, remaining);
     }
     const r = annualRate / 100 / 12;
     let interest = balance * r;
     let principalPaid = payment - interest;
     let pay = payment;
-    if (principalPaid > balance) { principalPaid = balance; pay = interest + principalPaid; } // תשלום אחרון
+    if (principalPaid > balance) { principalPaid = balance; pay = interest + principalPaid; }
     balance -= principalPaid;
-    cumInterest += interest;
+    cumInterest += interest; cumPrincipal += principalPaid;
     rows.push({
-      month: m,
-      date: new Date(start.getFullYear(), start.getMonth() + m, 1),
-      annualRate, payment: pay, interest, principalPaid,
-      balance: Math.max(balance, 0), cumInterest,
+      month: m, date: new Date(start.getFullYear(), start.getMonth() + m, 1),
+      annualRate, prime: loan.linkedToPrime ? annualRate - Number(loan.spread || 0) : null,
+      payment: pay, interest, principalPaid,
+      balance: Math.max(balance, 0), cumInterest, cumPrincipal,
     });
   }
   return rows;
 };
-
 const monthsElapsed = (startDate) => {
   const s = new Date(startDate), t = new Date();
   return Math.max(0, (t.getFullYear() - s.getFullYear()) * 12 + (t.getMonth() - s.getMonth()));
 };
 
-// ─── Default workplaces ──────────────────────────────────────────────────────
-const DEFAULT_PLACES = [
-  { id: 1, name: "מקום עבודה 1", color: "#6366f1", icon: "🏢" },
-  { id: 2, name: "מקום עבודה 2", color: "#10b981", icon: "🏪" },
-];
+// ─── Palette (validated dark categorical, Grafana surface) ───────────────────
+const C = {
+  page: "#0d0f14", panel: "#181b22", panelHead: "#1f232c",
+  ink: "#eaecef", ink2: "#a7adba", muted: "#6b7280",
+  grid: "#242833", axis: "#333846", border: "rgba(255,255,255,0.08)",
+  blue: "#3987e5", orange: "#d95926", aqua: "#199e70", yellow: "#c98500",
+  good: "#0ca30c", warn: "#fab219", crit: "#e66767",
+};
 
-const COLORS = ["#6366f1","#10b981","#f59e0b","#ef4444","#3b82f6","#ec4899","#14b8a6","#f97316"];
-const ICONS  = ["🏢","🏪","🏗","🏥","🍽","🛒","💼","🏠","🎓","🔧"];
+// ─── SVG time-series chart (stepped line / area, hover crosshair) ────────────
+function TimeChart({ series, dates, height = 200, unit = "", stepped = true,
+                    area = false, zeroBaseline = false, nowIndex = -1, decimals = 0 }) {
+  const [hi, setHi] = useState(-1);
+  const n = dates.length;
+  const W = 640, H = height, PL = 52, PR = 14, PT = 14, PB = 26;
+  const iw = W - PL - PR, ih = H - PT - PB;
 
-// ─── App ─────────────────────────────────────────────────────────────────────
-export default function App() {
-  const [now, setNow]           = useState(new Date());
-  const [places, setPlaces]     = useState(() => {
-    try { return JSON.parse(localStorage.getItem("wt_places")) || DEFAULT_PLACES; } catch { return DEFAULT_PLACES; }
-  });
-  const [sessions, setSessions] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("wt_sessions")) || []; } catch { return []; }
-  });
-  const [activePlace, setActivePlace] = useState(null);
-  const [checkIn, setCheckIn]   = useState(null);
-  const [breakStart, setBreakStart] = useState(null);
-  const [totalBreak, setTotalBreak] = useState(0);
-  const [status, setStatus]     = useState("idle");
-  const [elapsed, setElapsed]   = useState(0);
-  const [view, setView]         = useState("home");
-  const [filterPlace, setFilterPlace] = useState("all");
-  const [editingPlace, setEditingPlace] = useState(null);
-  const [newName, setNewName]   = useState("");
-  const [newIcon, setNewIcon]   = useState("🏢");
-  const [newColor, setNewColor] = useState(COLORS[0]);
-  const [showAddPlace, setShowAddPlace] = useState(false);
-  const [toast, setToast]       = useState(null);
-  const [exportModal, setExportModal] = useState(null); // placeId
-  const [copied, setCopied]     = useState(false);
-  // ── Loan tracker state ──
-  const [loan, setLoan] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("wt_loan")) || null; } catch { return null; }
-  });
-  const [rateChanges, setRateChanges] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("wt_rateChanges")) || []; } catch { return []; }
-  });
-  const [loanDraft, setLoanDraft] = useState(null);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [ncDate, setNcDate] = useState("");
-  const [ncValue, setNcValue] = useState("");
-  const [ncNote, setNcNote] = useState("");
-  const timerRef = useRef(null);
+  const allVals = series.flatMap((s) => s.data).filter((v) => v != null);
+  let lo = zeroBaseline ? 0 : Math.min(...allVals);
+  let hix = Math.max(...allVals);
+  if (lo === hix) { hix = lo + 1; }
+  const padv = (hix - lo) * 0.12 || 1;
+  if (!zeroBaseline) lo -= padv;
+  hix += padv;
+  const x = (i) => PL + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw);
+  const y = (v) => PT + ih - ((v - lo) / (hix - lo)) * ih;
 
-  useEffect(() => { localStorage.setItem("wt_places", JSON.stringify(places)); }, [places]);
-  useEffect(() => { localStorage.setItem("wt_sessions", JSON.stringify(sessions)); }, [sessions]);
-  useEffect(() => { localStorage.setItem("wt_loan", JSON.stringify(loan)); }, [loan]);
-  useEffect(() => { localStorage.setItem("wt_rateChanges", JSON.stringify(rateChanges)); }, [rateChanges]);
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+  const ticks = 4;
+  const yTicks = Array.from({ length: ticks + 1 }, (_, k) => lo + ((hix - lo) * k) / ticks);
 
-  useEffect(() => {
-    clearInterval(timerRef.current);
-    if (status === "working" && checkIn) {
-      timerRef.current = setInterval(() => setElapsed(Date.now() - checkIn - totalBreak), 1000);
+  const linePath = (data) => {
+    let d = "";
+    data.forEach((v, i) => {
+      if (v == null) return;
+      if (d === "") { d = `M${x(i)},${y(v)}`; }
+      else if (stepped) { d += ` H${x(i)} V${y(v)}`; }
+      else { d += ` L${x(i)},${y(v)}`; }
+    });
+    return d;
+  };
+  const areaPath = (data) => {
+    const lp = linePath(data);
+    if (!lp) return "";
+    return `${lp} V${y(lo)} H${x(0)} Z`;
+  };
+
+  const xLabelIdx = [];
+  dates.forEach((d, i) => {
+    const dt = new Date(d);
+    if (i === 0 || (dt.getMonth() === 0) || i === n - 1) {
+      if (!xLabelIdx.some((j) => Math.abs(x(j) - x(i)) < 46)) xLabelIdx.push(i);
     }
-    return () => clearInterval(timerRef.current);
-  }, [status, checkIn, totalBreak]);
+  });
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
-
-  // ── Actions ──────────────────────────────────────────────────────────────
-  const handleCheckIn = (placeId) => {
-    setActivePlace(placeId);
-    setCheckIn(Date.now());
-    setTotalBreak(0); setElapsed(0); setBreakStart(null);
-    setStatus("working");
-    showToast("✅ המשמרת התחילה!");
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - r.left) / r.width;
+    setHi(Math.max(0, Math.min(n - 1, Math.round(ratio * (n - 1)))));
   };
-
-  const handleBreak = () => {
-    if (status === "working") { setBreakStart(Date.now()); setStatus("break"); showToast("⏸ הפסקה"); }
-    else if (status === "break") {
-      setTotalBreak(p => p + (Date.now() - breakStart));
-      setBreakStart(null); setStatus("working"); showToast("▶ חזרת לעבודה");
-    }
-  };
-
-  const handleCheckOut = () => {
-    const now2 = Date.now();
-    let fb = totalBreak;
-    if (status === "break" && breakStart) fb += now2 - breakStart;
-    const worked = now2 - checkIn - fb;
-    setSessions(p => [{
-      id: now2, placeId: activePlace,
-      date: fmtDate(new Date(checkIn)),
-      checkIn: fmtTime(new Date(checkIn)),
-      checkOut: fmtTime(new Date(now2)),
-      breakMs: fb, workedMs: worked,
-    }, ...p]);
-    setStatus("idle"); setActivePlace(null); setCheckIn(null);
-    setBreakStart(null); setTotalBreak(0); setElapsed(0);
-    showToast("🏁 משמרת נשמרה!");
-  };
-
-  const deleteSession = (id) => setSessions(p => p.filter(s => s.id !== id));
-
-  // ── Export helpers ────────────────────────────────────────────────────────
-  const buildTextReport = (placeId) => {
-    const pl = places.find(p => p.id === placeId);
-    const list = sessions.filter(s => s.placeId === placeId);
-    if (!list.length) return null;
-    const total = list.reduce((a, s) => a + s.workedMs, 0);
-    let txt = `${pl.icon} דוח שעות — ${pl.name}\n`;
-    txt += `══════════════════════\n`;
-    list.forEach((s, i) => {
-      txt += `${i + 1}. ${s.date}\n`;
-      txt += `   כניסה: ${s.checkIn}  יציאה: ${s.checkOut}\n`;
-      txt += `   הפסקה: ${fmtDurShort(s.breakMs)}  עבודה: ${fmtDurShort(s.workedMs)} (${fmtDurDecimal(s.workedMs)} שעות)\n`;
-    });
-    txt += `══════════════════════\n`;
-    txt += `סה"כ משמרות: ${list.length}\n`;
-    txt += `סה"כ שעות: ${fmtDurShort(total)} (${fmtDurDecimal(total)} שעות)`;
-    return txt;
-  };
-
-  const handleCopy = (placeId) => {
-    const txt = buildTextReport(placeId);
-    if (!txt) { showToast("אין נתונים לייצוא"); return; }
-    navigator.clipboard.writeText(txt).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      showToast("✅ הועתק! אפשר להדביק בכל מקום");
-    });
-  };
-
-  const handleExcelExport = (placeId) => {
-    const pl = places.find(p => p.id === placeId);
-    const list = sessions.filter(s => s.placeId === placeId);
-    if (!list.length) { showToast("אין נתונים לייצוא"); return; }
-
-    // Build CSV with BOM for Hebrew support
-    const BOM = "\uFEFF";
-    const headers = ["#", "תאריך", "כניסה", "יציאה", "הפסקה", "שעות עבודה", "שעות (עשרוני)"];
-    const rows = list.map((s, i) => [
-      i + 1, s.date, s.checkIn, s.checkOut,
-      fmtDurShort(s.breakMs), fmtDurShort(s.workedMs), fmtDurDecimal(s.workedMs)
-    ]);
-    const total = list.reduce((a, s) => a + s.workedMs, 0);
-    rows.push(["", "", "", "", "סה\"כ:", fmtDurShort(total), fmtDurDecimal(total)]);
-
-    const csv = BOM + [headers, ...rows].map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `שעות_${pl.name}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-    showToast("📊 הקובץ הורד!");
-  };
-
-  const shareWhatsApp = (placeId) => {
-    const txt = buildTextReport(placeId);
-    if (!txt) { showToast("אין נתונים לשליחה"); return; }
-    window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, "_blank");
-  };
-
-  const shareEmail = (placeId) => {
-    const pl = places.find(p => p.id === placeId);
-    const txt = buildTextReport(placeId);
-    if (!txt) { showToast("אין נתונים לשליחה"); return; }
-    window.open(`mailto:?subject=${encodeURIComponent(`דוח שעות — ${pl.name}`)}&body=${encodeURIComponent(txt)}`, "_blank");
-  };
-
-  // ── Places management ─────────────────────────────────────────────────────
-  const addPlace = () => {
-    if (!newName.trim()) return;
-    setPlaces(p => [...p, { id: Date.now(), name: newName.trim(), color: newColor, icon: newIcon }]);
-    setNewName(""); setShowAddPlace(false); showToast("✅ מקום עבודה נוסף");
-  };
-
-  const saveEditPlace = () => {
-    setPlaces(p => p.map(pl => pl.id === editingPlace.id
-      ? { ...pl, name: newName || pl.name, color: newColor, icon: newIcon } : pl));
-    setEditingPlace(null); showToast("✅ נשמר");
-  };
-
-  const deletePlace = (id) => {
-    if (activePlace === id) { showToast("לא ניתן למחוק מקום פעיל"); return; }
-    setPlaces(p => p.filter(pl => pl.id !== id));
-    setSessions(p => p.filter(s => s.placeId !== id));
-    showToast("🗑 נמחק");
-  };
-
-  // ── Loan tracker actions ───────────────────────────────────────────────────
-  const openLoanForm = () => {
-    setLoanDraft(loan ? { ...loan } : {
-      principal: "", months: "", startDate: fmtDateISO(new Date()),
-      linkedToPrime: true, spread: "1.5", initialValue: "6",
-    });
-  };
-
-  const saveLoan = () => {
-    const d = loanDraft;
-    const principal = Number(d.principal), months = Number(d.months);
-    if (!principal || principal <= 0) { showToast("הזן סכום קרן תקין"); return; }
-    if (!months || months <= 0) { showToast("הזן מספר חודשים תקין"); return; }
-    if (!d.startDate) { showToast("בחר תאריך התחלה"); return; }
-    if (d.initialValue === "" || isNaN(Number(d.initialValue))) { showToast("הזן ריבית התחלתית"); return; }
-    setLoan({
-      principal, months, startDate: d.startDate,
-      linkedToPrime: !!d.linkedToPrime,
-      spread: d.linkedToPrime ? Number(d.spread || 0) : 0,
-      initialValue: Number(d.initialValue),
-    });
-    setLoanDraft(null);
-    showToast("✅ פרטי ההלוואה נשמרו");
-  };
-
-  const addRateChange = () => {
-    if (!ncDate) { showToast("בחר תאריך לעדכון"); return; }
-    if (ncValue === "" || isNaN(Number(ncValue))) { showToast("הזן ערך ריבית"); return; }
-    setRateChanges(p => [...p, { id: Date.now(), date: ncDate, value: Number(ncValue), note: ncNote.trim() }]);
-    setNcDate(""); setNcValue(""); setNcNote("");
-    showToast("✅ עדכון ריבית נוסף");
-  };
-
-  const deleteRateChange = (id) => setRateChanges(p => p.filter(c => c.id !== id));
-
-  // ── Stats ─────────────────────────────────────────────────────────────────
-  const statsFor = (placeId) => {
-    const list = sessions.filter(s => s.placeId === placeId);
-    return { count: list.length, total: list.reduce((a, s) => a + s.workedMs, 0) };
-  };
-
-  const filteredSessions = filterPlace === "all" ? sessions : sessions.filter(s => s.placeId === Number(filterPlace));
-  const activePlaceObj = places.find(p => p.id === activePlace);
-  const exportPlaceObj = places.find(p => p.id === exportModal);
-
-  // ── Loan derived data ──
-  const sortedChanges = [...rateChanges].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const schedule = loan ? buildSchedule(loan, sortedChanges) : [];
-  let loanData = null;
-  if (loan && schedule.length) {
-    const elapsed = Math.min(monthsElapsed(loan.startDate), loan.months);
-    const idxNow = Math.min(elapsed, loan.months - 1);
-    const rowNow = schedule[idxNow];
-    const prevRow = idxNow > 0 ? schedule[idxNow - 1] : null;
-    const origPayment = spitzerPayment(loan.principal, effectiveRate(loan, loan.initialValue), loan.months);
-    const baseSchedule = buildSchedule(loan, []); // תרחיש ללא שינויי ריבית
-    loanData = {
-      elapsed, idxNow, rowNow, origPayment,
-      currentPayment: rowNow.payment,
-      currentRate: rowNow.annualRate,
-      balanceNow: prevRow ? prevRow.balance : loan.principal,
-      interestPaid: prevRow ? prevRow.cumInterest : 0,
-      totalInterest: schedule[schedule.length - 1].cumInterest,
-      baseTotalInterest: baseSchedule[baseSchedule.length - 1].cumInterest,
-      endDate: schedule[schedule.length - 1].date,
-    };
-  }
 
   return (
-    <div style={S.page}>
-      <div style={S.blob1}/><div style={S.blob2}/>
-      {toast && <div style={S.toast}>{toast}</div>}
-
-      {/* ── Export Modal ── */}
-      {exportModal && exportPlaceObj && (
-        <div style={S.modalBg} onClick={() => setExportModal(null)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={S.modalTitle}>{exportPlaceObj.icon} ייצוא — {exportPlaceObj.name}</div>
-
-            {/* Summary inside modal */}
-            {(() => {
-              const list = sessions.filter(s => s.placeId === exportModal);
-              const total = list.reduce((a, s) => a + s.workedMs, 0);
-              return list.length > 0 ? (
-                <div style={S.summaryBox}>
-                  <div style={S.summaryRow2}>
-                    <span style={S.summaryLabel2}>סה"כ משמרות</span>
-                    <span style={S.summaryVal}>{list.length}</span>
-                  </div>
-                  <div style={S.summaryRow2}>
-                    <span style={S.summaryLabel2}>סה"כ שעות</span>
-                    <span style={{ ...S.summaryVal, color: exportPlaceObj.color }}>{fmtDurShort(total)}</span>
-                  </div>
-                  <div style={S.summaryRow2}>
-                    <span style={S.summaryLabel2}>בעשרוני</span>
-                    <span style={{ ...S.summaryVal, color: exportPlaceObj.color }}>{fmtDurDecimal(total)} ש'</span>
-                  </div>
-                </div>
-              ) : <div style={{ color:"#475569", fontSize:13, textAlign:"center", padding:"10px 0" }}>אין נתונים עדיין</div>;
-            })()}
-
-            <div style={S.exportOptions}>
-              <button style={{ ...S.exportBtn2, background:"#25D36615", borderColor:"#25D36640", color:"#25D366" }}
-                onClick={() => { shareWhatsApp(exportModal); setExportModal(null); }}>
-                <span style={S.exportIcon}>📲</span>
-                <div><div style={S.exportBtnTitle}>וואטסאפ</div><div style={S.exportBtnSub}>שלח כהודעה</div></div>
-              </button>
-              <button style={{ ...S.exportBtn2, background:"#3b82f615", borderColor:"#3b82f640", color:"#3b82f6" }}
-                onClick={() => { shareEmail(exportModal); setExportModal(null); }}>
-                <span style={S.exportIcon}>📧</span>
-                <div><div style={S.exportBtnTitle}>מייל</div><div style={S.exportBtnSub}>שלח כמייל</div></div>
-              </button>
-              <button style={{ ...S.exportBtn2, background:"#10b98115", borderColor:"#10b98140", color:"#10b981" }}
-                onClick={() => { handleExcelExport(exportModal); setExportModal(null); }}>
-                <span style={S.exportIcon}>📊</span>
-                <div><div style={S.exportBtnTitle}>אקסל / CSV</div><div style={S.exportBtnSub}>הורד קובץ</div></div>
-              </button>
-              <button style={{ ...S.exportBtn2, background:"#f59e0b15", borderColor:"#f59e0b40", color:"#f59e0b" }}
-                onClick={() => { handleCopy(exportModal); }}>
-                <span style={S.exportIcon}>{copied ? "✅" : "📋"}</span>
-                <div><div style={S.exportBtnTitle}>{copied ? "הועתק!" : "העתק טקסט"}</div><div style={S.exportBtnSub}>הדבק בכל מקום</div></div>
-              </button>
+    <div dir="ltr" style={{ position: "relative", width: "100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={PL} x2={W - PR} y1={y(t)} y2={y(t)} stroke={C.grid} strokeWidth="1" />
+            <text x={PL - 8} y={y(t) + 3} fill={C.muted} fontSize="10" textAnchor="end"
+              style={{ fontVariantNumeric: "tabular-nums" }}>
+              {unit === "₪" ? fmtMoney1(t) : t.toFixed(decimals)}{unit && unit !== "₪" ? unit : ""}
+            </text>
+          </g>
+        ))}
+        {xLabelIdx.map((i) => (
+          <text key={i} x={x(i)} y={H - 8} fill={C.muted} fontSize="10" textAnchor="middle">
+            {fmtMonth(new Date(dates[i]))}
+          </text>
+        ))}
+        {nowIndex >= 0 && (
+          <g>
+            <line x1={x(nowIndex)} x2={x(nowIndex)} y1={PT} y2={PT + ih} stroke={C.warn}
+              strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />
+            <text x={x(nowIndex)} y={PT - 3} fill={C.warn} fontSize="9" textAnchor="middle">היום</text>
+          </g>
+        )}
+        {series.map((s, si) => (
+          <g key={si}>
+            {area && <path d={areaPath(s.data)} fill={s.color} opacity="0.13" />}
+            <path d={linePath(s.data)} fill="none" stroke={s.color} strokeWidth="2"
+              strokeLinejoin="round" strokeLinecap="round" />
+          </g>
+        ))}
+        {hi >= 0 && (
+          <g>
+            <line x1={x(hi)} x2={x(hi)} y1={PT} y2={PT + ih} stroke={C.ink2} strokeWidth="1" opacity="0.4" />
+            {series.map((s, si) => s.data[hi] != null && (
+              <circle key={si} cx={x(hi)} cy={y(s.data[hi])} r="3.5" fill={s.color}
+                stroke={C.panel} strokeWidth="2" />
+            ))}
+          </g>
+        )}
+        <rect x={PL} y={PT} width={iw} height={ih} fill="transparent"
+          onMouseMove={onMove} onMouseLeave={() => setHi(-1)} />
+      </svg>
+      {hi >= 0 && (
+        <div style={{ ...St.tip, left: `${(x(hi) / W) * 100}%`,
+          transform: `translateX(${x(hi) > W / 2 ? "-105%" : "5%"})` }}>
+          <div style={{ color: C.ink2, fontSize: 11, marginBottom: 4 }}>{fmtDateHe(dates[hi])}</div>
+          {series.map((s, si) => s.data[hi] != null && (
+            <div key={si} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
+              <span style={{ color: C.ink2 }}>{s.name}</span>
+              <span style={{ color: C.ink, fontWeight: 700, marginInlineStart: "auto",
+                fontVariantNumeric: "tabular-nums" }}>
+                {unit === "₪" ? fmtMoney(s.data[hi]) : s.data[hi].toFixed(decimals) + unit}
+              </span>
             </div>
-
-            <button style={{ ...S.btn, background:"#ffffff10", color:"#64748b", marginTop:4 }}
-              onClick={() => setExportModal(null)}>סגור</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Edit / Add Place Modal ── */}
-      {(showAddPlace || editingPlace) && (
-        <div style={S.modalBg} onClick={() => { setShowAddPlace(false); setEditingPlace(null); }}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={S.modalTitle}>{editingPlace ? "✏️ עריכת מקום" : "➕ מקום עבודה חדש"}</div>
-            <input style={S.input} placeholder="שם מקום העבודה"
-              value={newName} onChange={e => setNewName(e.target.value)} />
-            <div style={S.modalLabel}>אייקון</div>
-            <div style={S.iconGrid}>
-              {ICONS.map(ic => (
-                <button key={ic} onClick={() => setNewIcon(ic)}
-                  style={{ ...S.iconBtn, background: newIcon === ic ? "#ffffff25" : "transparent",
-                    border: newIcon === ic ? "2px solid #fff" : "2px solid transparent" }}>{ic}</button>
-              ))}
-            </div>
-            <div style={S.modalLabel}>צבע</div>
-            <div style={S.colorRow}>
-              {COLORS.map(c => (
-                <button key={c} onClick={() => setNewColor(c)}
-                  style={{ ...S.colorDot, background: c, border: newColor === c ? "3px solid #fff" : "3px solid transparent" }}/>
-              ))}
-            </div>
-            <div style={{ display:"flex", gap:10, marginTop:8 }}>
-              <button style={{ ...S.btn, ...S.btnGreen, flex:1 }} onClick={editingPlace ? saveEditPlace : addPlace}>שמור</button>
-              <button style={{ ...S.btn, background:"#ffffff15", color:"#94a3b8", flex:1 }}
-                onClick={() => { setShowAddPlace(false); setEditingPlace(null); }}>ביטול</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={S.container}>
-        {/* Header */}
-        <div style={S.header}>
-          <div style={S.logoRow}><span style={{fontSize:26}}>⏱</span><span style={S.logoText}>TimeTrack</span></div>
-          <div style={S.clockTime}>{fmtTime(now)}</div>
-          <div style={S.clockDate}>{now.toLocaleDateString("he-IL",{weekday:"long"})}, {fmtDate(now)}</div>
-        </div>
-
-        {/* Nav */}
-        <div style={S.nav}>
-          {[["home","🏠 ראשי"],["history","📋 היסטוריה"],["loan","💰 הלוואה"],["settings","⚙️ הגדרות"]].map(([v,l]) => (
-            <button key={v} onClick={() => setView(v)}
-              style={{ ...S.navBtn, ...(view===v ? S.navBtnActive : {}) }}>{l}</button>
           ))}
         </div>
+      )}
+      {series.length > 1 && (
+        <div style={St.legend}>
+          {series.map((s, si) => (
+            <span key={si} style={St.legItem}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color }} />
+              <span style={{ color: C.ink2, fontSize: 12 }}>{s.name}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-        {/* ── HOME ── */}
-        {view === "home" && (
-          <div style={S.section}>
-            {status !== "idle" && activePlaceObj && (
-              <div style={{ ...S.timerCard, borderColor: activePlaceObj.color + "50",
-                boxShadow:`0 0 24px ${activePlaceObj.color}25` }}>
-                <div style={{ color: activePlaceObj.color, fontWeight:700, fontSize:14, marginBottom:4 }}>
-                  {activePlaceObj.icon} {activePlaceObj.name}
-                </div>
-                <div style={S.timerDisplay}>{fmtDur(elapsed)}</div>
-                <div style={S.timerSub}>
-                  {status === "working" ? "🟢 בעבודה" : "🟡 הפסקה"} · כניסה {fmtTime(new Date(checkIn))}
-                  {totalBreak > 0 && ` · הפסקות: ${fmtDurShort(totalBreak)}`}
-                </div>
-                <div style={{ display:"flex", gap:10, marginTop:14 }}>
-                  <button style={{ ...S.btn, ...(status==="break"?S.btnGreen:S.btnAmber), flex:1 }} onClick={handleBreak}>
-                    {status==="break" ? "▶ חזור לעבודה" : "⏸ הפסקה"}
-                  </button>
-                  <button style={{ ...S.btn, ...S.btnRed, flex:1 }} onClick={handleCheckOut}>🔴 סיום</button>
-                </div>
-              </div>
-            )}
+function Panel({ title, sub, children, span }) {
+  return (
+    <div style={{ ...St.panel, gridColumn: span ? "1 / -1" : "auto" }}>
+      <div style={St.panelHead}>
+        <span style={St.panelTitle}>{title}</span>
+        {sub && <span style={St.panelSub}>{sub}</span>}
+      </div>
+      <div style={St.panelBody}>{children}</div>
+    </div>
+  );
+}
 
-            {places.map(pl => {
-              const st = statsFor(pl.id);
-              const isActive = activePlace === pl.id;
-              return (
-                <div key={pl.id} style={{ ...S.placeCard, borderColor: pl.color + "40",
-                  opacity: (status!=="idle" && !isActive) ? 0.45 : 1 }}>
-                  <div style={{ ...S.placeHeader, background: pl.color + "18" }}>
-                    <span style={S.placeIcon}>{pl.icon}</span>
-                    <div style={{ flex:1 }}>
-                      <div style={{ ...S.placeName, color: pl.color }}>{pl.name}</div>
-                      <div style={S.placeStat}>{st.count} משמרות · {fmtDurShort(st.total)} ({fmtDurDecimal(st.total)} ש')</div>
-                    </div>
-                  </div>
-                  <div style={S.placeActions}>
-                    {status === "idle" && (
-                      <button style={{ ...S.btn, background: pl.color, color:"#fff", flex:1,
-                        boxShadow:`0 4px 14px ${pl.color}45` }} onClick={() => handleCheckIn(pl.id)}>
-                        🟢 התחל משמרת
-                      </button>
-                    )}
-                    <button style={{ ...S.iconActionBtn }} onClick={() => {
-                      setExportModal(pl.id); setCopied(false);
-                    }} title="ייצוא">📤</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+function Stat({ label, value, color, delta, deltaGood }) {
+  return (
+    <div style={St.stat}>
+      <div style={St.statLabel}>{label}</div>
+      <div style={{ ...St.statValue, color: color || C.ink }}>{value}</div>
+      {delta != null && (
+        <div style={{ ...St.statDelta, color: deltaGood ? C.good : C.crit }}>{delta}</div>
+      )}
+    </div>
+  );
+}
 
-        {/* ── HISTORY ── */}
-        {view === "history" && (
-          <div style={S.section}>
-            <div style={S.filterRow}>
-              <select style={S.select} value={filterPlace} onChange={e => setFilterPlace(e.target.value)}>
-                <option value="all">כל המקומות</option>
-                {places.map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
-              </select>
+// ─── App ─────────────────────────────────────────────────────────────────────
+const DEFAULT_DRAFT = { principal: "", months: "", startDate: fmtDateISO(new Date()),
+  linkedToPrime: true, spread: "", initialValue: "" };
+
+export default function App() {
+  const [loan, setLoan] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("loan_v2")) || null; } catch { return null; }
+  });
+  const [rateChanges, setRateChanges] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("rateChanges_v2")) || []; } catch { return []; }
+  });
+  const [draft, setDraft] = useState(loan ? null : DEFAULT_DRAFT);
+  const [pull, setPull] = useState({ state: "loading" }); // loading | ok | fail
+  const [banner, setBanner] = useState(null);
+  const [nc, setNc] = useState({ date: "", value: "", note: "" });
+  const [showChanges, setShowChanges] = useState(false);
+
+  useEffect(() => { localStorage.setItem("loan_v2", JSON.stringify(loan)); }, [loan]);
+  useEffect(() => { localStorage.setItem("rateChanges_v2", JSON.stringify(rateChanges)); }, [rateChanges]);
+
+  const sortedChanges = useMemo(
+    () => [...rateChanges].sort((a, b) => new Date(a.date) - new Date(b.date)), [rateChanges]);
+
+  // ── Auto-pull the prime from Bank of Israel (via /api/prime) ──
+  const fetchPrime = async () => {
+    setPull({ state: "loading" });
+    try {
+      const res = await fetch("/api/prime", { cache: "no-store" });
+      const d = await res.json();
+      if (!d || d.ok === false || typeof d.prime !== "number") { setPull({ state: "fail", reason: d && d.reason }); return; }
+      setPull({ state: "ok", ...d });
+      if (loan && loan.linkedToPrime) {
+        const latest = sortedChanges.length ? sortedChanges[sortedChanges.length - 1].value : loan.initialValue;
+        if (Math.abs(d.prime - latest) >= 0.01 && !rateChanges.some((c) => c.date === d.effectiveDate)) {
+          setRateChanges((p) => [...p, { id: Date.now(), date: d.effectiveDate, value: d.prime,
+            note: "עודכן אוטומטית מבנק ישראל", auto: true }]);
+          setBanner(`🔔 עודכן אוטומטית: פריים ${fmtPct(d.prime)} (בנק ישראל ${fmtPct(d.boiRate)}) מ-${fmtDateHe(d.effectiveDate)}`);
+        }
+      }
+    } catch { setPull({ state: "fail" }); }
+  };
+  useEffect(() => { fetchPrime(); /* eslint-disable-next-line */ }, [loan?.principal, loan?.linkedToPrime]);
+
+  // ── Derived ──
+  const data = useMemo(() => {
+    if (!loan) return null;
+    const schedule = buildSchedule(loan, sortedChanges);
+    if (!schedule.length) return null;
+    const base = buildSchedule(loan, []);
+    const elapsed = Math.min(monthsElapsed(loan.startDate), loan.months);
+    const idx = Math.min(elapsed, loan.months - 1);
+    const prev = idx > 0 ? schedule[idx - 1] : null;
+    const origPayment = spitzerPayment(loan.principal, effectiveRate(loan, loan.initialValue), loan.months);
+    return {
+      schedule, base, elapsed, idx,
+      currentPayment: schedule[idx].payment,
+      currentRate: schedule[idx].annualRate,
+      origPayment,
+      balanceNow: prev ? prev.balance : loan.principal,
+      interestPaid: prev ? prev.cumInterest : 0,
+      principalPaid: prev ? prev.cumPrincipal : 0,
+      totalInterest: schedule[schedule.length - 1].cumInterest,
+      baseTotalInterest: base[base.length - 1].cumInterest,
+    };
+  }, [loan, sortedChanges]);
+
+  const saveLoan = () => {
+    const d = draft, principal = Number(d.principal), months = Number(d.months);
+    if (!principal || principal <= 0) return setBanner("⚠ הזן סכום קרן תקין");
+    if (!months || months <= 0) return setBanner("⚠ הזן מספר חודשים תקין");
+    if (!d.startDate) return setBanner("⚠ בחר תאריך התחלה");
+    if (d.initialValue === "" || isNaN(Number(d.initialValue))) return setBanner("⚠ הזן ריבית התחלתית");
+    setLoan({ principal, months, startDate: d.startDate, linkedToPrime: !!d.linkedToPrime,
+      spread: d.linkedToPrime ? Number(d.spread || 0) : 0, initialValue: Number(d.initialValue) });
+    setDraft(null); setBanner(null);
+  };
+  const addChange = () => {
+    if (!nc.date || nc.value === "" || isNaN(Number(nc.value))) return setBanner("⚠ בחר תאריך והזן ריבית");
+    setRateChanges((p) => [...p, { id: Date.now(), date: nc.date, value: Number(nc.value), note: nc.note.trim() }]);
+    setNc({ date: "", value: "", note: "" });
+  };
+  const delChange = (id) => setRateChanges((p) => p.filter((c) => c.id !== id));
+
+  // chart datasets
+  const charts = useMemo(() => {
+    if (!data) return null;
+    const s = data.schedule, dates = s.map((r) => fmtDateISO(r.date));
+    return {
+      dates, nowIndex: data.idx,
+      rate: [
+        { name: "הריבית שלך", color: C.orange, data: s.map((r) => +r.annualRate.toFixed(2)) },
+        ...(loan.linkedToPrime ? [{ name: "פריים", color: C.blue, data: s.map((r) => +r.prime.toFixed(2)) }] : []),
+      ],
+      payment: [{ name: "תשלום חודשי", color: C.aqua, data: s.map((r) => Math.round(r.payment)) }],
+      balance: [{ name: "יתרת קרן", color: C.blue, data: s.map((r) => Math.round(r.balance)) }],
+      split: [
+        { name: "ריבית מצטברת", color: C.orange, data: s.map((r) => Math.round(r.cumInterest)) },
+        { name: "קרן מצטברת", color: C.aqua, data: s.map((r) => Math.round(r.cumPrincipal)) },
+      ],
+    };
+  }, [data, loan]);
+
+  return (
+    <div style={St.page}>
+      {/* Top bar */}
+      <div style={St.topbar}>
+        <div style={St.brand}>
+          <span style={{ fontSize: 20 }}>📊</span>
+          <div>
+            <div style={St.brandTitle}>מעקב הלוואת רכב</div>
+            <div style={St.brandSub}>
+              {loan ? `${fmtMoney(loan.principal)} · ${loan.months} ח' · ${loan.linkedToPrime ? `פריים + ${fmtPct(loan.spread).replace("%", "")}%` : "ריבית קבועה"}` : "לא הוגדרה הלוואה"}
             </div>
-
-            {/* Summary bar */}
-            {filteredSessions.length > 0 && (
-              <div style={S.summaryBar}>
-                <div style={S.summaryBarItem}>
-                  <span style={S.summaryBarNum}>{filteredSessions.length}</span>
-                  <span style={S.summaryBarLabel}>משמרות</span>
-                </div>
-                <div style={S.summaryBarDivider}/>
-                <div style={S.summaryBarItem}>
-                  <span style={S.summaryBarNum}>{fmtDurShort(filteredSessions.reduce((a,s)=>a+s.workedMs,0))}</span>
-                  <span style={S.summaryBarLabel}>סה"כ שעות</span>
-                </div>
-                <div style={S.summaryBarDivider}/>
-                <div style={S.summaryBarItem}>
-                  <span style={S.summaryBarNum}>{fmtDurDecimal(filteredSessions.reduce((a,s)=>a+s.workedMs,0))}</span>
-                  <span style={S.summaryBarLabel}>שעות עשרוני</span>
-                </div>
-              </div>
-            )}
-
-            {filteredSessions.length === 0
-              ? <div style={S.empty}>📭<br/>אין משמרות עדיין</div>
-              : filteredSessions.map(s => {
-                const pl = places.find(p => p.id === s.placeId) || { name:"?", color:"#64748b", icon:"❓" };
-                return (
-                  <div key={s.id} style={{ ...S.sessionCard, borderRightColor: pl.color }}>
-                    <div style={S.sessionTop}>
-                      <span style={{ color: pl.color, fontWeight:700 }}>{pl.icon} {pl.name}</span>
-                      <span style={S.sessionDate}>{s.date}</span>
-                    </div>
-                    <div style={S.sessionRow}>
-                      <span style={{ color:"#94a3b8" }}>⏰ {s.checkIn} – {s.checkOut}</span>
-                      <span style={{ color:"#10b981", fontWeight:700 }}>✅ {fmtDurShort(s.workedMs)}</span>
-                    </div>
-                    <div style={S.sessionRow}>
-                      <span style={{ color:"#475569", fontSize:12 }}>
-                        הפסקה: {fmtDurShort(s.breakMs)} · {fmtDurDecimal(s.workedMs)} שעות
-                      </span>
-                      <button onClick={() => deleteSession(s.id)} style={S.delBtn}>🗑</button>
-                    </div>
-                  </div>
-                );
-              })
-            }
           </div>
-        )}
-
-        {/* ── LOAN ── */}
-        {view === "loan" && (
-          <div style={S.section}>
-            {/* Setup / edit form */}
-            {(loanDraft || !loan) && (
-              <div style={S.loanForm}>
-                <div style={S.modalTitle}>💰 {loan ? "עריכת ההלוואה" : "פרטי ההלוואה"}</div>
-                <div style={S.loanHint}>הלוואת שפיצר = תשלום חודשי קבוע, שמתחשב מחדש בכל שינוי ריבית</div>
-                <div style={S.formGrid}>
-                  <label style={S.fLabel}>סכום הקרן (₪)
-                    <input style={S.input} type="number" inputMode="numeric" placeholder="לדוגמה 120000"
-                      value={loanDraft?.principal ?? ""} onChange={e => setLoanDraft(d => ({ ...d, principal: e.target.value }))} />
-                  </label>
-                  <label style={S.fLabel}>תקופה (חודשים)
-                    <input style={S.input} type="number" inputMode="numeric" placeholder="לדוגמה 60"
-                      value={loanDraft?.months ?? ""} onChange={e => setLoanDraft(d => ({ ...d, months: e.target.value }))} />
-                  </label>
-                  <label style={S.fLabel}>תאריך התחלה
-                    <input style={S.input} type="date"
-                      value={loanDraft?.startDate ?? ""} onChange={e => setLoanDraft(d => ({ ...d, startDate: e.target.value }))} />
-                  </label>
-                  <label style={S.fLabel}>{loanDraft?.linkedToPrime ? "פריים התחלתי (%)" : "ריבית שנתית (%)"}
-                    <input style={S.input} type="number" step="0.01" inputMode="decimal" placeholder="לדוגמה 6"
-                      value={loanDraft?.initialValue ?? ""} onChange={e => setLoanDraft(d => ({ ...d, initialValue: e.target.value }))} />
-                  </label>
-                </div>
-
-                <label style={S.checkRow}>
-                  <input type="checkbox" checked={!!loanDraft?.linkedToPrime}
-                    onChange={e => setLoanDraft(d => ({ ...d, linkedToPrime: e.target.checked }))} />
-                  <span>צמוד לריבית הפריים (ריבית משתנה לפי המשק)</span>
-                </label>
-                {loanDraft?.linkedToPrime && (
-                  <label style={S.fLabel}>מרווח מעל הפריים (%) — לדוגמה P+1.5
-                    <input style={S.input} type="number" step="0.01" inputMode="decimal" placeholder="1.5"
-                      value={loanDraft?.spread ?? ""} onChange={e => setLoanDraft(d => ({ ...d, spread: e.target.value }))} />
-                  </label>
-                )}
-                {loanDraft?.linkedToPrime && loanDraft?.initialValue !== "" && (
-                  <div style={S.loanHint}>ריבית אפקטיבית התחלתית: {fmtPct(Number(loanDraft.initialValue || 0) + Number(loanDraft.spread || 0))}</div>
-                )}
-
-                <div style={{ display:"flex", gap:10, marginTop:6 }}>
-                  <button style={{ ...S.btn, ...S.btnGreen, flex:1 }} onClick={saveLoan}>שמור</button>
-                  {loan && <button style={{ ...S.btn, background:"#ffffff15", color:"#94a3b8", flex:1 }}
-                    onClick={() => setLoanDraft(null)}>ביטול</button>}
-                </div>
-              </div>
-            )}
-
-            {/* Results */}
-            {loan && !loanDraft && loanData && (
-              <>
-                <div style={S.loanHero}>
-                  <div style={S.loanHeroLabel}>התשלום החודשי הנוכחי</div>
-                  <div style={S.loanHeroVal}>{fmtMoney(loanData.currentPayment)}</div>
-                  <div style={S.loanHeroSub}>
-                    ריבית נוכחית {fmtPct(loanData.currentRate)}
-                    {loan.linkedToPrime && ` (פריים ${fmtPct(loanData.currentRate - loan.spread)} + ${fmtPct(loan.spread).replace("%","")}%)`}
-                  </div>
-                  {Math.abs(loanData.currentPayment - loanData.origPayment) >= 1 && (
-                    <div style={{ ...S.loanDelta, color: loanData.currentPayment > loanData.origPayment ? "#ef4444" : "#10b981" }}>
-                      {loanData.currentPayment > loanData.origPayment ? "▲" : "▼"} {fmtMoney(Math.abs(loanData.currentPayment - loanData.origPayment))} לחודש מאז ההתחלה
-                      ({fmtMoney(loanData.origPayment)} בתחילה)
-                    </div>
-                  )}
-                </div>
-
-                <div style={S.loanGrid}>
-                  <div style={S.loanStat}><div style={S.loanStatVal}>{fmtMoney(loanData.balanceNow)}</div><div style={S.loanStatLbl}>יתרת קרן להיום</div></div>
-                  <div style={S.loanStat}><div style={S.loanStatVal}>{loanData.elapsed}/{loan.months}</div><div style={S.loanStatLbl}>חודשים ששולמו</div></div>
-                  <div style={S.loanStat}><div style={S.loanStatVal}>{fmtMoney(loanData.interestPaid)}</div><div style={S.loanStatLbl}>ריבית ששולמה עד היום</div></div>
-                  <div style={S.loanStat}><div style={S.loanStatVal}>{fmtMoney(loanData.totalInterest)}</div><div style={S.loanStatLbl}>סה"כ ריבית (צפי)</div></div>
-                </div>
-
-                {Math.abs(loanData.totalInterest - loanData.baseTotalInterest) >= 1 && (
-                  <div style={{ ...S.loanCompare, color: loanData.totalInterest > loanData.baseTotalInterest ? "#f59e0b" : "#10b981" }}>
-                    {loanData.totalInterest > loanData.baseTotalInterest ? "📈" : "📉"} שינויי הריבית {loanData.totalInterest > loanData.baseTotalInterest ? "מייקרים" : "מוזילים"} את ההלוואה בכ־{fmtMoney(Math.abs(loanData.totalInterest - loanData.baseTotalInterest))} לעומת ריבית קבועה
-                  </div>
-                )}
-
-                {/* Rate changes */}
-                <div style={S.settingsTitle}>מעקב שינויי ריבית</div>
-                <div style={S.loanForm}>
-                  <div style={S.loanHint}>
-                    {loan.linkedToPrime
-                      ? "כשבנק ישראל משנה ריבית — עדכן כאן את הפריים החדש והתשלום יחושב מחדש."
-                      : "הזן כאן כל עדכון ריבית שקיבלת מהבנק."}
-                  </div>
-                  <div style={S.ncGrid}>
-                    <input style={S.input} type="date" value={ncDate} onChange={e => setNcDate(e.target.value)} />
-                    <input style={S.input} type="number" step="0.01" inputMode="decimal"
-                      placeholder={loan.linkedToPrime ? "פריים חדש %" : "ריבית חדשה %"}
-                      value={ncValue} onChange={e => setNcValue(e.target.value)} />
-                  </div>
-                  <input style={S.input} placeholder="הערה (אופציונלי) — לדוגמה: העלאת בנק ישראל"
-                    value={ncNote} onChange={e => setNcNote(e.target.value)} />
-                  <button style={{ ...S.btn, ...S.btnGreen }} onClick={addRateChange}>➕ הוסף עדכון ריבית</button>
-                </div>
-
-                {sortedChanges.length === 0
-                  ? <div style={{ ...S.loanHint, textAlign:"center", padding:"6px 0" }}>עדיין לא נרשמו שינויי ריבית</div>
-                  : sortedChanges.map(c => {
-                    const eff = effectiveRate(loan, c.value);
-                    const start = new Date(loan.startDate);
-                    const mi = (new Date(c.date).getFullYear() - start.getFullYear()) * 12 + (new Date(c.date).getMonth() - start.getMonth());
-                    const before = mi > 0 && mi <= schedule.length ? schedule[mi - 1] : null;
-                    const after = mi >= 0 && mi < schedule.length ? schedule[mi] : null;
-                    const delta = before && after ? after.payment - before.payment : 0;
-                    return (
-                      <div key={c.id} style={{ ...S.sessionCard, borderRightColor: delta > 0 ? "#ef4444" : delta < 0 ? "#10b981" : "#64748b" }}>
-                        <div style={S.sessionTop}>
-                          <span style={{ color:"#e2e8f0", fontWeight:700 }}>
-                            {fmtMonth(new Date(c.date))} · {loan.linkedToPrime ? `פריים ${fmtPct(c.value)}` : ""} ריבית {fmtPct(eff)}
-                          </span>
-                          <button onClick={() => deleteRateChange(c.id)} style={S.delBtn}>🗑</button>
-                        </div>
-                        {after && (mi >= 0 && mi < loan.months) && (
-                          <div style={S.sessionRow}>
-                            <span style={{ color:"#94a3b8", fontSize:13 }}>תשלום חדש: {fmtMoney(after.payment)}</span>
-                            {before && <span style={{ color: delta > 0 ? "#ef4444" : delta < 0 ? "#10b981" : "#64748b", fontWeight:700, fontSize:13 }}>
-                              {delta > 0 ? "▲ +" : delta < 0 ? "▼ " : ""}{delta !== 0 ? fmtMoney(delta) : "ללא שינוי"}
-                            </span>}
-                          </div>
-                        )}
-                        {(mi < 0 || mi >= loan.months) && <div style={{ color:"#f59e0b", fontSize:12 }}>⚠ התאריך מחוץ לתקופת ההלוואה</div>}
-                        {c.note && <div style={{ color:"#475569", fontSize:12 }}>{c.note}</div>}
-                      </div>
-                    );
-                  })
-                }
-
-                {/* Schedule */}
-                <button style={{ ...S.btn, background:"#ffffff10", color:"#94a3b8", marginTop:4 }}
-                  onClick={() => setShowSchedule(s => !s)}>
-                  {showSchedule ? "▲ הסתר לוח סילוקין" : "▼ הצג לוח סילוקין מלא"}
-                </button>
-                {showSchedule && (
-                  <div style={S.tableWrap}>
-                    <table style={S.table}>
-                      <thead>
-                        <tr>
-                          {["חודש","ריבית","תשלום","מזה ריבית","מזה קרן","יתרה"].map(h => <th key={h} style={S.th}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {schedule.map((r) => (
-                          <tr key={r.month} style={r.month === loanData.idxNow ? S.trNow : undefined}>
-                            <td style={S.td}>{fmtMonth(r.date)}</td>
-                            <td style={S.td}>{fmtPct(r.annualRate)}</td>
-                            <td style={S.td}>{fmtMoney(r.payment)}</td>
-                            <td style={S.td}>{fmtMoney(r.interest)}</td>
-                            <td style={S.td}>{fmtMoney(r.principalPaid)}</td>
-                            <td style={S.td}>{fmtMoney(r.balance)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                <div style={{ display:"flex", gap:10 }}>
-                  <button style={{ ...S.btn, background:"#ffffff10", color:"#94a3b8", flex:1 }} onClick={openLoanForm}>✏️ ערוך הלוואה</button>
-                  <button style={{ ...S.btn, background:"#ef444420", color:"#ef4444", border:"1px solid #ef444430", flex:1 }}
-                    onClick={() => { if (window.confirm("למחוק את ההלוואה ואת כל שינויי הריבית?")) { setLoan(null); setRateChanges([]); showToast("🗑 נמחק"); } }}>
-                    🗑 מחק הלוואה
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── SETTINGS ── */}
-        {view === "settings" && (
-          <div style={S.section}>
-            <div style={S.settingsTitle}>מקומות עבודה</div>
-            {places.map(pl => (
-              <div key={pl.id} style={{ ...S.settingRow, borderRightColor: pl.color }}>
-                <span style={{ fontSize:22 }}>{pl.icon}</span>
-                <span style={{ flex:1, color:"#e2e8f0", fontWeight:600 }}>{pl.name}</span>
-                <button style={S.iconActionBtn} onClick={() => {
-                  setEditingPlace(pl); setNewName(pl.name); setNewColor(pl.color); setNewIcon(pl.icon);
-                }}>✏️</button>
-                <button style={S.iconActionBtn} onClick={() => deletePlace(pl.id)}>🗑</button>
-              </div>
-            ))}
-            <button style={{ ...S.btn, ...S.btnGreen, marginTop:8 }} onClick={() => {
-              setNewName(""); setNewColor(COLORS[0]); setNewIcon("🏢"); setShowAddPlace(true);
-            }}>➕ הוסף מקום עבודה</button>
-            <button style={{ ...S.btn, background:"#ef444420", color:"#ef4444",
-              border:"1px solid #ef444430", marginTop:8 }}
-              onClick={() => { if(window.confirm("למחוק את כל ההיסטוריה?")) { setSessions([]); showToast("🗑 נמחק"); } }}>
-              🗑 מחק את כל ההיסטוריה
-            </button>
-          </div>
-        )}
+        </div>
+        <div style={St.topActions}>
+          <PullChip pull={pull} onRefresh={fetchPrime} />
+          {loan && <button style={St.iconBtn} title="הגדרות"
+            onClick={() => setDraft({ ...loan, principal: String(loan.principal), months: String(loan.months),
+              spread: String(loan.spread), initialValue: String(loan.initialValue) })}>⚙️</button>}
+        </div>
       </div>
 
+      {banner && (
+        <div style={St.banner} onClick={() => setBanner(null)}>{banner} <span style={{ opacity: .6 }}>✕</span></div>
+      )}
+
+      {/* Config modal */}
+      {draft && (
+        <div style={St.modalBg} onClick={() => loan && setDraft(null)}>
+          <div style={St.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={St.modalTitle}>💰 {loan ? "הגדרות הלוואה" : "הגדרת ההלוואה"}</div>
+            <div style={St.formGrid}>
+              <Field label="סכום הקרן (₪)"><input style={St.input} type="number" placeholder="100000"
+                value={draft.principal} onChange={(e) => setDraft({ ...draft, principal: e.target.value })} /></Field>
+              <Field label="תקופה (חודשים)"><input style={St.input} type="number" placeholder="60"
+                value={draft.months} onChange={(e) => setDraft({ ...draft, months: e.target.value })} /></Field>
+              <Field label="תאריך התחלה"><input style={St.input} type="date"
+                value={draft.startDate} onChange={(e) => setDraft({ ...draft, startDate: e.target.value })} /></Field>
+              <Field label={draft.linkedToPrime ? "פריים התחלתי (%)" : "ריבית שנתית (%)"}>
+                <input style={St.input} type="number" step="0.01" placeholder="6"
+                value={draft.initialValue} onChange={(e) => setDraft({ ...draft, initialValue: e.target.value })} /></Field>
+            </div>
+            <label style={St.check}>
+              <input type="checkbox" checked={draft.linkedToPrime}
+                onChange={(e) => setDraft({ ...draft, linkedToPrime: e.target.checked })} />
+              צמוד לריבית הפריים (משתנה עם המשק — מתעדכן אוטומטית מבנק ישראל)
+            </label>
+            {draft.linkedToPrime && (
+              <Field label="מרווח מעל הפריים (%) — לדוגמה P+1.5"><input style={St.input} type="number" step="0.01"
+                placeholder="1.5" value={draft.spread} onChange={(e) => setDraft({ ...draft, spread: e.target.value })} /></Field>
+            )}
+            {draft.linkedToPrime && draft.initialValue !== "" && (
+              <div style={St.hint}>ריבית אפקטיבית התחלתית: {fmtPct(Number(draft.initialValue || 0) + Number(draft.spread || 0))}</div>
+            )}
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <button style={{ ...St.btn, ...St.btnPrimary, flex: 1 }} onClick={saveLoan}>שמור</button>
+              {loan && <button style={{ ...St.btn, ...St.btnGhost, flex: 1 }} onClick={() => setDraft(null)}>סגור</button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loan && !draft && (
+        <div style={St.empty}>
+          <div style={{ fontSize: 40 }}>📊</div>
+          <div style={{ color: C.ink, fontWeight: 700, fontSize: 17 }}>אין עדיין הלוואה</div>
+          <button style={{ ...St.btn, ...St.btnPrimary }} onClick={() => setDraft(DEFAULT_DRAFT)}>➕ הגדר הלוואה</button>
+        </div>
+      )}
+
+      {loan && data && charts && (
+        <div style={St.dashboard}>
+          {/* KPI row */}
+          <div style={St.kpiRow}>
+            <Stat label="תשלום חודשי נוכחי" value={fmtMoney(data.currentPayment)} color={C.aqua}
+              delta={Math.abs(data.currentPayment - data.origPayment) >= 1
+                ? `${data.currentPayment < data.origPayment ? "▼" : "▲"} ${fmtMoney(Math.abs(data.currentPayment - data.origPayment))} מההתחלה` : null}
+              deltaGood={data.currentPayment < data.origPayment} />
+            <Stat label="ריבית נוכחית" value={fmtPct(data.currentRate)} color={C.orange}
+              delta={loan.linkedToPrime ? `פריים ${fmtPct(data.currentRate - loan.spread)}` : null} deltaGood />
+            <Stat label="יתרת קרן" value={fmtMoney(data.balanceNow)} color={C.blue} />
+            <Stat label="התקדמות" value={`${data.elapsed}/${loan.months}`} color={C.ink}
+              delta={`${Math.round((data.elapsed / loan.months) * 100)}% שולם`} deltaGood />
+            <Stat label="ריבית ששולמה" value={fmtMoney(data.interestPaid)} color={C.ink} />
+            <Stat label="סה״כ ריבית (צפי)" value={fmtMoney(data.totalInterest)} color={C.ink}
+              delta={Math.abs(data.totalInterest - data.baseTotalInterest) >= 1
+                ? `${data.totalInterest < data.baseTotalInterest ? "▼" : "▲"} ${fmtMoney(Math.abs(data.totalInterest - data.baseTotalInterest))} מול קבועה` : null}
+              deltaGood={data.totalInterest < data.baseTotalInterest} />
+          </div>
+
+          {/* Charts */}
+          <div style={St.grid}>
+            <Panel title="ריבית לאורך זמן" sub={loan.linkedToPrime ? "פריים מול הריבית האפקטיבית" : "ריבית ההלוואה"}>
+              <TimeChart series={charts.rate} dates={charts.dates} unit="%" decimals={2}
+                nowIndex={charts.nowIndex} height={200} />
+            </Panel>
+            <Panel title="תשלום חודשי לאורך זמן" sub="מחושב מחדש בכל שינוי ריבית">
+              <TimeChart series={charts.payment} dates={charts.dates} unit="₪"
+                nowIndex={charts.nowIndex} height={200} />
+            </Panel>
+            <Panel title="יתרת קרן" sub="לוח סילוקין">
+              <TimeChart series={charts.balance} dates={charts.dates} unit="₪" area zeroBaseline
+                nowIndex={charts.nowIndex} height={200} />
+            </Panel>
+            <Panel title="קרן מול ריבית (מצטבר)" sub="לאן הולך הכסף">
+              <TimeChart series={charts.split} dates={charts.dates} unit="₪" area zeroBaseline
+                nowIndex={charts.nowIndex} height={200} />
+            </Panel>
+          </div>
+
+          {/* Rate changes */}
+          <Panel title="שינויי ריבית" sub={`${sortedChanges.length} עדכונים · הפריים מתעדכן אוטומטית מבנק ישראל`} span>
+            <div style={St.ncRow}>
+              <input style={St.input} type="date" value={nc.date} onChange={(e) => setNc({ ...nc, date: e.target.value })} />
+              <input style={St.input} type="number" step="0.01"
+                placeholder={loan.linkedToPrime ? "פריים חדש %" : "ריבית חדשה %"}
+                value={nc.value} onChange={(e) => setNc({ ...nc, value: e.target.value })} />
+              <input style={{ ...St.input, flex: 2 }} placeholder="הערה (אופציונלי)"
+                value={nc.note} onChange={(e) => setNc({ ...nc, note: e.target.value })} />
+              <button style={{ ...St.btn, ...St.btnPrimary }} onClick={addChange}>הוסף</button>
+            </div>
+            {sortedChanges.length === 0
+              ? <div style={{ ...St.hint, textAlign: "center", padding: "8px 0" }}>אין שינויי ריבית עדיין</div>
+              : (
+                <table style={St.table}>
+                  <thead><tr>
+                    {["תאריך", loan.linkedToPrime ? "פריים" : "", "ריבית", "תשלום חדש", "שינוי", "מקור", ""].map((h, i) =>
+                      <th key={i} style={St.th}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {sortedChanges.map((c) => {
+                      const start = new Date(loan.startDate);
+                      const mi = (new Date(c.date).getFullYear() - start.getFullYear()) * 12 + (new Date(c.date).getMonth() - start.getMonth());
+                      const after = mi >= 0 && mi < data.schedule.length ? data.schedule[mi] : null;
+                      const before = mi > 0 && mi <= data.schedule.length ? data.schedule[mi - 1] : null;
+                      const delta = after && before ? after.payment - before.payment : 0;
+                      const inRange = mi >= 0 && mi < loan.months;
+                      return (
+                        <tr key={c.id}>
+                          <td style={St.td}>{fmtDateHe(c.date)}</td>
+                          {loan.linkedToPrime && <td style={St.td}>{fmtPct(c.value)}</td>}
+                          <td style={{ ...St.td, color: C.orange, fontWeight: 700 }}>{fmtPct(effectiveRate(loan, c.value))}</td>
+                          <td style={St.td}>{after && inRange ? fmtMoney(after.payment) : "—"}</td>
+                          <td style={{ ...St.td, color: delta < 0 ? C.good : delta > 0 ? C.crit : C.muted, fontWeight: 700 }}>
+                            {!inRange ? "מחוץ לטווח" : delta ? `${delta < 0 ? "▼" : "▲"} ${fmtMoney(Math.abs(delta))}` : "—"}
+                          </td>
+                          <td style={St.td}>{c.auto ? <span style={St.autoTag}>אוטומטי</span> : <span style={{ color: C.muted }}>ידני</span>}</td>
+                          <td style={St.td}><button style={St.del} onClick={() => delChange(c.id)}>🗑</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+          </Panel>
+        </div>
+      )}
+
+      <div style={St.foot}>
+        הריבית נמשכת מבנק ישראל · פריים = ריבית בנק ישראל + 1.5% · הנתונים נשמרים מקומית בדפדפן שלך
+      </div>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:'Heebo',sans-serif;direction:rtl}
-        button{transition:all .15s;cursor:pointer}
-        button:hover{filter:brightness(1.1);transform:scale(1.02)}
-        button:active{transform:scale(.97)}
-        select{outline:none}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#ffffff20;border-radius:2px}
+        body{font-family:'Heebo',system-ui,sans-serif;direction:rtl;background:${C.page}}
+        button{transition:all .15s;cursor:pointer;font-family:inherit}
+        button:hover{filter:brightness(1.12)}
+        input{font-family:inherit}
+        ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#ffffff18;border-radius:3px}
       `}</style>
     </div>
   );
 }
 
-const S = {
-  page:{ minHeight:"100vh", background:"linear-gradient(145deg,#080e1a 0%,#0f1e2e 50%,#080e1a 100%)",
-    display:"flex", justifyContent:"center", padding:"20px 14px 60px", position:"relative",
-    overflow:"hidden", fontFamily:"'Heebo',sans-serif", direction:"rtl" },
-  blob1:{ position:"fixed", top:-100, right:-100, width:350, height:350, borderRadius:"50%",
-    background:"radial-gradient(circle,#6366f130 0%,transparent 70%)", pointerEvents:"none" },
-  blob2:{ position:"fixed", bottom:-80, left:-80, width:300, height:300, borderRadius:"50%",
-    background:"radial-gradient(circle,#10b98125 0%,transparent 70%)", pointerEvents:"none" },
-  container:{ width:"100%", maxWidth:460, display:"flex", flexDirection:"column", gap:14,
-    animation:"fadeUp .5s ease" },
-  header:{ textAlign:"center", paddingTop:4 },
-  logoRow:{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:2 },
-  logoText:{ fontSize:24, fontWeight:800, color:"#fff", letterSpacing:-0.5 },
-  clockTime:{ fontSize:46, fontWeight:800, color:"#fff", letterSpacing:2, lineHeight:1.1,
-    fontVariantNumeric:"tabular-nums" },
-  clockDate:{ color:"#475569", fontSize:13, marginTop:2 },
-  nav:{ display:"flex", gap:6, background:"#ffffff08", padding:5, borderRadius:14,
-    border:"1px solid #ffffff0d" },
-  navBtn:{ flex:1, padding:"9px 6px", borderRadius:10, border:"none", background:"transparent",
-    color:"#64748b", fontSize:12, fontWeight:600 },
-  navBtnActive:{ background:"#ffffff15", color:"#e2e8f0" },
-  section:{ display:"flex", flexDirection:"column", gap:12 },
-  timerCard:{ background:"#0f172a", border:"1px solid", borderRadius:18, padding:"20px 20px 16px",
-    textAlign:"center" },
-  timerDisplay:{ fontSize:42, fontWeight:800, color:"#fff", fontVariantNumeric:"tabular-nums",
-    letterSpacing:2 },
-  timerSub:{ color:"#475569", fontSize:12, marginTop:4 },
-  placeCard:{ background:"#0f1a2e", border:"1px solid", borderRadius:16, overflow:"hidden" },
-  placeHeader:{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px" },
-  placeIcon:{ fontSize:28 },
-  placeName:{ fontWeight:700, fontSize:15 },
-  placeStat:{ color:"#475569", fontSize:12 },
-  placeActions:{ display:"flex", gap:8, padding:"10px 14px 14px" },
-  summaryBar:{ background:"#0f1a2e", border:"1px solid #ffffff10", borderRadius:14,
-    padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-around" },
-  summaryBarItem:{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 },
-  summaryBarNum:{ color:"#e2e8f0", fontWeight:800, fontSize:18 },
-  summaryBarLabel:{ color:"#475569", fontSize:11 },
-  summaryBarDivider:{ width:1, height:30, background:"#ffffff10" },
-  sessionCard:{ background:"#0f1a2e", borderRadius:14, padding:"12px 14px",
-    borderRight:"3px solid", display:"flex", flexDirection:"column", gap:6 },
-  sessionTop:{ display:"flex", justifyContent:"space-between", alignItems:"center" },
-  sessionDate:{ color:"#475569", fontSize:12 },
-  sessionRow:{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:13 },
-  filterRow:{ display:"flex", gap:8 },
-  select:{ flex:1, background:"#0f1a2e", border:"1px solid #ffffff15", borderRadius:10,
-    color:"#e2e8f0", padding:"9px 12px", fontSize:13, fontFamily:"'Heebo',sans-serif" },
-  settingsTitle:{ color:"#94a3b8", fontSize:12, fontWeight:700, letterSpacing:1, marginBottom:2 },
-  settingRow:{ background:"#0f1a2e", borderRadius:12, padding:"12px 14px",
-    display:"flex", alignItems:"center", gap:10, borderRight:"3px solid #6366f1" },
-  empty:{ textAlign:"center", color:"#334155", padding:"40px 0", fontSize:15, lineHeight:2.2 },
-  btn:{ padding:"12px 16px", borderRadius:12, border:"none", fontSize:14, fontWeight:700,
-    display:"flex", alignItems:"center", justifyContent:"center", gap:7 },
-  btnGreen:{ background:"linear-gradient(135deg,#10b981,#059669)", color:"#fff",
-    boxShadow:"0 4px 14px #10b98135" },
-  btnAmber:{ background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"#fff" },
-  btnRed:{ background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff" },
-  iconActionBtn:{ background:"#ffffff0d", border:"1px solid #ffffff12", borderRadius:10,
-    padding:"8px 10px", fontSize:16, color:"#e2e8f0" },
-  delBtn:{ background:"transparent", border:"none", color:"#ef444460", fontSize:14,
-    padding:"2px 6px", borderRadius:6 },
-  toast:{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)",
-    background:"#1e293b", border:"1px solid #ffffff20", color:"#e2e8f0",
-    padding:"10px 20px", borderRadius:12, fontSize:14, fontWeight:600, zIndex:9999,
-    animation:"toastIn .3s ease", whiteSpace:"nowrap", boxShadow:"0 8px 24px #00000060" },
-  modalBg:{ position:"fixed", inset:0, background:"#00000085", backdropFilter:"blur(6px)",
-    zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 },
-  modal:{ background:"#0f1e2e", border:"1px solid #ffffff15", borderRadius:20,
-    padding:"24px 20px", width:"100%", maxWidth:360, display:"flex", flexDirection:"column", gap:12 },
-  modalTitle:{ color:"#e2e8f0", fontWeight:800, fontSize:18 },
-  modalLabel:{ color:"#64748b", fontSize:12, fontWeight:600 },
-  input:{ background:"#ffffff0d", border:"1px solid #ffffff15", borderRadius:10,
-    color:"#e2e8f0", padding:"10px 14px", fontSize:14, fontFamily:"'Heebo',sans-serif",
-    outline:"none", textAlign:"right" },
-  iconGrid:{ display:"flex", flexWrap:"wrap", gap:6 },
-  iconBtn:{ width:38, height:38, borderRadius:8, border:"none", fontSize:20, cursor:"pointer" },
-  colorRow:{ display:"flex", gap:8, flexWrap:"wrap" },
-  colorDot:{ width:28, height:28, borderRadius:"50%", cursor:"pointer" },
-  summaryBox:{ background:"#ffffff08", borderRadius:12, padding:"12px 14px",
-    display:"flex", flexDirection:"column", gap:8 },
-  summaryRow2:{ display:"flex", justifyContent:"space-between", alignItems:"center" },
-  summaryLabel2:{ color:"#64748b", fontSize:13 },
-  summaryVal:{ color:"#e2e8f0", fontWeight:700, fontSize:15 },
-  exportOptions:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
-  exportBtn2:{ background:"transparent", border:"1px solid", borderRadius:12,
-    padding:"12px 10px", display:"flex", alignItems:"center", gap:10, cursor:"pointer",
-    textAlign:"right" },
-  exportIcon:{ fontSize:22 },
-  exportBtnTitle:{ fontWeight:700, fontSize:13 },
-  exportBtnSub:{ fontSize:11, opacity:0.7, marginTop:1 },
+function Field({ label, children }) {
+  return <label style={St.field}><span style={St.fieldLabel}>{label}</span>{children}</label>;
+}
+function PullChip({ pull, onRefresh }) {
+  const map = {
+    loading: { c: C.muted, t: "מסנכרן…", d: "●" },
+    ok: { c: C.good, t: pull.prime != null ? `פריים ${fmtPct(pull.prime)}` : "מעודכן", d: "●" },
+    fail: { c: C.warn, t: "ידני (אין חיבור)", d: "○" },
+  }[pull.state] || { c: C.muted, t: "", d: "●" };
+  return (
+    <button style={St.chip} onClick={onRefresh} title={pull.state === "ok" && pull.asOf ? `נכון ל-${fmtDateHe(pull.asOf)}` : "רענן מבנק ישראל"}>
+      <span style={{ color: map.c, fontSize: 10 }}>{map.d}</span>
+      <span style={{ color: C.ink2, fontSize: 12 }}>{map.t}</span>
+      <span style={{ color: C.muted, fontSize: 12 }}>↻</span>
+    </button>
+  );
+}
 
-  // ── Loan ──
-  loanForm:{ background:"#0f1e2e", border:"1px solid #ffffff12", borderRadius:16,
-    padding:"16px 16px", display:"flex", flexDirection:"column", gap:12 },
-  loanHint:{ color:"#64748b", fontSize:12, lineHeight:1.5 },
-  formGrid:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
-  fLabel:{ display:"flex", flexDirection:"column", gap:5, color:"#94a3b8",
-    fontSize:12, fontWeight:600 },
-  checkRow:{ display:"flex", alignItems:"center", gap:8, color:"#cbd5e1",
-    fontSize:13, cursor:"pointer" },
-  loanHero:{ background:"linear-gradient(135deg,#101f36,#0f2a24)", border:"1px solid #10b98130",
-    borderRadius:18, padding:"20px 18px", textAlign:"center" },
-  loanHeroLabel:{ color:"#64748b", fontSize:13, marginBottom:4 },
-  loanHeroVal:{ color:"#fff", fontSize:38, fontWeight:800, letterSpacing:1,
-    fontVariantNumeric:"tabular-nums" },
-  loanHeroSub:{ color:"#94a3b8", fontSize:13, marginTop:4 },
-  loanDelta:{ fontSize:13, fontWeight:700, marginTop:10 },
-  loanGrid:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
-  loanStat:{ background:"#0f1a2e", border:"1px solid #ffffff10", borderRadius:14,
-    padding:"14px 12px", textAlign:"center" },
-  loanStatVal:{ color:"#e2e8f0", fontWeight:800, fontSize:19, fontVariantNumeric:"tabular-nums" },
-  loanStatLbl:{ color:"#475569", fontSize:11, marginTop:3 },
-  loanCompare:{ background:"#ffffff08", border:"1px solid #ffffff10", borderRadius:12,
-    padding:"12px 14px", fontSize:13, fontWeight:600, lineHeight:1.5 },
-  ncGrid:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
-  tableWrap:{ overflowX:"auto", background:"#0f1a2e", border:"1px solid #ffffff10",
-    borderRadius:12, WebkitOverflowScrolling:"touch" },
-  table:{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:420 },
-  th:{ color:"#64748b", fontWeight:700, padding:"9px 8px", textAlign:"center",
-    borderBottom:"1px solid #ffffff12", whiteSpace:"nowrap", position:"sticky", top:0,
-    background:"#0f1a2e" },
-  td:{ color:"#cbd5e1", padding:"7px 8px", textAlign:"center", whiteSpace:"nowrap",
-    borderBottom:"1px solid #ffffff08", fontVariantNumeric:"tabular-nums" },
-  trNow:{ background:"#10b98118" },
+// ─── Styles ──────────────────────────────────────────────────────────────────
+const St = {
+  page: { minHeight: "100vh", background: C.page, color: C.ink, padding: "0 0 40px",
+    fontFamily: "'Heebo',system-ui,sans-serif", direction: "rtl" },
+  topbar: { display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "14px 18px", borderBottom: `1px solid ${C.border}`, background: C.panel,
+    position: "sticky", top: 0, zIndex: 50, flexWrap: "wrap", gap: 10 },
+  brand: { display: "flex", alignItems: "center", gap: 10 },
+  brandTitle: { fontWeight: 800, fontSize: 16, color: C.ink },
+  brandSub: { fontSize: 12, color: C.ink2, marginTop: 1 },
+  topActions: { display: "flex", alignItems: "center", gap: 8 },
+  chip: { display: "flex", alignItems: "center", gap: 6, background: C.page,
+    border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px" },
+  iconBtn: { background: C.page, border: `1px solid ${C.border}`, borderRadius: 8,
+    padding: "6px 9px", fontSize: 15 },
+  banner: { margin: "12px 18px 0", background: "#1f2a1c", border: `1px solid ${C.good}55`,
+    color: "#c9f0c0", padding: "10px 14px", borderRadius: 10, fontSize: 13, cursor: "pointer",
+    display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 },
+  dashboard: { padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, maxWidth: 1280, margin: "0 auto" },
+  kpiRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 },
+  stat: { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: "13px 15px" },
+  statLabel: { color: C.ink2, fontSize: 12, marginBottom: 6 },
+  statValue: { fontSize: 24, fontWeight: 800, letterSpacing: -0.3 },
+  statDelta: { fontSize: 12, fontWeight: 600, marginTop: 4 },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,440px),1fr))", gap: 14 },
+  panel: { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" },
+  panelHead: { display: "flex", alignItems: "baseline", gap: 8, padding: "12px 16px 0" },
+  panelTitle: { fontWeight: 700, fontSize: 14, color: C.ink },
+  panelSub: { fontSize: 11, color: C.muted },
+  panelBody: { padding: "10px 14px 16px" },
+  legend: { display: "flex", gap: 16, justifyContent: "center", marginTop: 8 },
+  legItem: { display: "flex", alignItems: "center", gap: 6 },
+  tip: { position: "absolute", top: 6, background: "#0b0d11ee", border: `1px solid ${C.border}`,
+    borderRadius: 8, padding: "8px 10px", pointerEvents: "none", minWidth: 150, zIndex: 20,
+    boxShadow: "0 8px 24px #00000070" },
+  field: { display: "flex", flexDirection: "column", gap: 5 },
+  fieldLabel: { color: C.ink2, fontSize: 12, fontWeight: 600 },
+  formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  input: { background: C.page, border: `1px solid ${C.border}`, borderRadius: 8, color: C.ink,
+    padding: "9px 11px", fontSize: 13, outline: "none", width: "100%", textAlign: "right" },
+  check: { display: "flex", alignItems: "center", gap: 8, color: C.ink2, fontSize: 13, cursor: "pointer" },
+  hint: { color: C.muted, fontSize: 12 },
+  btn: { padding: "10px 16px", borderRadius: 9, border: "none", fontSize: 14, fontWeight: 700 },
+  btnPrimary: { background: C.blue, color: "#fff" },
+  btnGhost: { background: "#ffffff12", color: C.ink2 },
+  empty: { display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "80px 20px" },
+  modalBg: { position: "fixed", inset: 0, background: "#000000a0", backdropFilter: "blur(4px)",
+    zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 18 },
+  modal: { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: "22px 20px",
+    width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 12 },
+  modalTitle: { fontWeight: 800, fontSize: 17, color: C.ink },
+  ncRow: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: 12.5 },
+  th: { color: C.muted, fontWeight: 600, padding: "8px 10px", textAlign: "right",
+    borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" },
+  td: { color: C.ink2, padding: "9px 10px", textAlign: "right", whiteSpace: "nowrap",
+    borderBottom: `1px solid ${C.grid}`, fontVariantNumeric: "tabular-nums" },
+  autoTag: { background: `${C.blue}22`, color: C.blue, fontSize: 11, fontWeight: 700,
+    padding: "2px 7px", borderRadius: 6 },
+  del: { background: "transparent", border: "none", fontSize: 13, opacity: 0.6 },
+  foot: { textAlign: "center", color: C.muted, fontSize: 11, padding: "24px 18px 0", lineHeight: 1.7 },
 };
