@@ -1,0 +1,45 @@
+name: Update prime rate
+
+# Fetches the Bank of Israel interest rate (BIR dataflow) and commits
+# public/prime.json. Runs on GitHub's servers (open network, no CORS), so the
+# static app can just read the committed JSON from raw.githubusercontent.com.
+#
+# Note: the "schedule" trigger only fires from the repository's DEFAULT branch.
+# Until this is on the default branch, use "Run workflow" (workflow_dispatch).
+
+on:
+  schedule:
+    - cron: "0 5 * * 1,4"   # Mon & Thu 05:00 UTC — around BOI decision cadence
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-prime
+  cancel-in-progress: false
+
+jobs:
+  update-prime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch Bank of Israel rate → public/prime.json
+        run: node scripts/fetch-prime.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "prime-bot"
+          git config user.email "prime-bot@users.noreply.github.com"
+          if git diff --quiet -- public/prime.json; then
+            echo "prime.json unchanged — nothing to commit."
+          else
+            git add public/prime.json
+            git commit -m "chore: update prime rate from Bank of Israel [skip ci]"
+            git push
+          fi
