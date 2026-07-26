@@ -36,10 +36,10 @@ jobs:
         run: |
           git config user.name "prime-bot"
           git config user.email "prime-bot@users.noreply.github.com"
-          if git diff --quiet -- public/prime.json; then
+          git add public/prime.json
+          if git diff --cached --quiet; then
             echo "prime.json unchanged — nothing to commit."
           else
-            git add public/prime.json
             git commit -m "chore: update prime rate from Bank of Israel [skip ci]"
             git push
           fi
