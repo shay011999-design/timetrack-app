@@ -1,0 +1,193 @@
+{
+  "ok": true,
+  "prime": 7.5,
+  "boiRate": 6,
+  "boiRateRaw": 5.97,
+  "effectiveDate": "2026-01",
+  "asOf": "2026-07-26",
+  "seriesCode": "BNK_99010_LR_BIR_1890",
+  "seriesName": null,
+  "source": "Bank of Israel — Fusion Edge Server SDMX",
+  "candidates": [
+    {
+      "code": "BNK_99010_LR_BIR_5690",
+      "name": null,
+      "value": 5570491.99,
+      "date": "2026-06"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1890",
+      "name": null,
+      "value": 5.97,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1552",
+      "name": null,
+      "value": 1.37,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1276",
+      "name": null,
+      "value": 6.84,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1344",
+      "name": null,
+      "value": 19670881,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1145",
+      "name": null,
+      "value": 6.39,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_5683",
+      "name": null,
+      "value": 7684334.27,
+      "date": "2026-06"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1342",
+      "name": null,
+      "value": 0.83,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1147",
+      "name": null,
+      "value": 239432733.03,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1183",
+      "name": null,
+      "value": 0.45,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_5665",
+      "name": null,
+      "value": 835682.23,
+      "date": "2026-06"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1143",
+      "name": null,
+      "value": 0.72,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1895",
+      "name": null,
+      "value": 5067347.04,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1187",
+      "name": null,
+      "value": 149175913,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1446",
+      "name": null,
+      "value": 7.88,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1277",
+      "name": null,
+      "value": 53047911,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1343",
+      "name": null,
+      "value": 7.23,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1556",
+      "name": null,
+      "value": 49930,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1185",
+      "name": null,
+      "value": 5.95,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1167",
+      "name": null,
+      "value": 857639.99,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1448",
+      "name": null,
+      "value": 11563111,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1163",
+      "name": null,
+      "value": 1.03,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1893",
+      "name": null,
+      "value": 8.39,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1445",
+      "name": null,
+      "value": 2.29,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1554",
+      "name": null,
+      "value": 6.11,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_5684",
+      "name": null,
+      "value": 2024384.06,
+      "date": "2026-06"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_5674",
+      "name": null,
+      "value": 601629.6,
+      "date": "2026-06"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1275",
+      "name": null,
+      "value": 0.59,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_1165",
+      "name": null,
+      "value": 5.41,
+      "date": "2026-01"
+    },
+    {
+      "code": "BNK_99010_LR_BIR_5702",
+      "name": null,
+      "value": 1805870.62,
+      "date": "2026-06"
+    }
+  ]
+}
