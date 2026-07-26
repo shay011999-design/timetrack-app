@@ -226,7 +226,7 @@ const DEFAULT_DRAFT = { principal: "", months: "", startDate: fmtDateISO(new Dat
 // is the JSON committed by the GitHub Action (CORS-open, works from a local file).
 const PRIME_SOURCES = [
   "/api/prime",
-  "https://raw.githubusercontent.com/shay011999-design/timetrack-app/refs/heads/claude/tracker-spitzer-loan-interest-4onfiz/public/prime.json",
+  "https://raw.githubusercontent.com/shay011999-design/timetrack-app/refs/heads/main/public/prime.json",
 ];
 
 export default function App() {

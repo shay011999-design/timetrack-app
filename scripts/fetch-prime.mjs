@@ -21,8 +21,9 @@ import { dirname } from "node:path";
 const UA = "Mozilla/5.0 (compatible; loan-dashboard-prime/1.0; +github-actions)";
 const OUT = "public/prime.json";
 const PRIME_SPREAD = 1.5;
-const POLICY_SERIES = process.env.BIR_SERIES || "";      // pinned headline series code
-const DISCOVER = process.env.DISCOVER !== "0";           // log structure metadata
+// MNT_RIB_BOI_D = the headline Bank of Israel rate (ריבית בנק ישראל), daily.
+const POLICY_SERIES = process.env.BIR_SERIES || "MNT_RIB_BOI_D";
+const DISCOVER = process.env.DISCOVER === "1";           // log structure metadata (opt-in)
 const EDGE = "https://edge.boi.gov.il/FusionEdgeServer";
 const DATA = `${EDGE}/ws/public/sdmxapi/rest/data`;
 const STRUCT = `${EDGE}/sdmx/v2/structure`;
