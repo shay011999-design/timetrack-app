@@ -221,6 +221,14 @@ function Stat({ label, value, color, delta, deltaGood }) {
 const DEFAULT_DRAFT = { principal: "", months: "", startDate: fmtDateISO(new Date()),
   linkedToPrime: true, spread: "", initialValue: "" };
 
+// Where to read the current prime from, in order. /api/prime is a serverless
+// endpoint (if the app is ever hosted on Vercel); the raw.githubusercontent URL
+// is the JSON committed by the GitHub Action (CORS-open, works from a local file).
+const PRIME_SOURCES = [
+  "/api/prime",
+  "https://raw.githubusercontent.com/shay011999-design/timetrack-app/refs/heads/claude/tracker-spitzer-loan-interest-4onfiz/public/prime.json",
+];
+
 export default function App() {
   const [loan, setLoan] = useState(() => {
     try { return JSON.parse(localStorage.getItem("loan_v2")) || null; } catch { return null; }
@@ -240,13 +248,23 @@ export default function App() {
   const sortedChanges = useMemo(
     () => [...rateChanges].sort((a, b) => new Date(a.date) - new Date(b.date)), [rateChanges]);
 
-  // ── Auto-pull the prime from Bank of Israel (via /api/prime) ──
+  // ── Auto-pull the prime from Bank of Israel ──
+  // Tries a serverless endpoint (Vercel) first, then the JSON committed by the
+  // GitHub Action to raw.githubusercontent.com (CORS-open — works from a local
+  // file, no server and no browser-security bypass needed).
   const fetchPrime = async () => {
     setPull({ state: "loading" });
-    try {
-      const res = await fetch("/api/prime", { cache: "no-store" });
-      const d = await res.json();
-      if (!d || d.ok === false || typeof d.prime !== "number") { setPull({ state: "fail", reason: d && d.reason }); return; }
+    let d = null;
+    for (const url of PRIME_SOURCES) {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) continue;
+        const j = await res.json();
+        if (j && j.ok !== false && typeof j.prime === "number") { d = j; break; }
+      } catch { /* try next source */ }
+    }
+    if (!d) { setPull({ state: "fail" }); return; }
+    {
       setPull({ state: "ok", ...d });
       if (loan && loan.linkedToPrime) {
         const latest = sortedChanges.length ? sortedChanges[sortedChanges.length - 1].value : loan.initialValue;
@@ -256,7 +274,7 @@ export default function App() {
           setBanner(`🔔 עודכן אוטומטית: פריים ${fmtPct(d.prime)} (בנק ישראל ${fmtPct(d.boiRate)}) מ-${fmtDateHe(d.effectiveDate)}`);
         }
       }
-    } catch { setPull({ state: "fail" }); }
+    }
   };
   useEffect(() => { fetchPrime(); /* eslint-disable-next-line */ }, [loan?.principal, loan?.linkedToPrime]);
 
