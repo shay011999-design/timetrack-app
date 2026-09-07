@@ -1,0 +1,4 @@
+# Only needed to run `python -m vehicle_maintenance.ocr`, which calls a vision
+# model to read scanned documents. Not installed in CI — the build never calls it.
+-r requirements.txt
+anthropic>=1.0

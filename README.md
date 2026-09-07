@@ -32,7 +32,7 @@
 | טיפול / חשבונית מוסך | `pipeline/data/pdfs/` |
 | קבלת דלק (PDF עם טקסט) | `pipeline/data/fuel/` |
 | תדלוק או מד אוץ ידני | `pipeline/data/fuel/<תאריך>.json` — או דרך כפתור **+ תדלוק** בדשבורד |
-| מסמך סרוק | תמלול ל-JSON — ראו ה-README בתיקייה הרלוונטית |
+| מסמך סרוק | `python -m vehicle_maintenance.ocr <קובץ> --kind fuel\|service` |
 
 ## הרצה
 

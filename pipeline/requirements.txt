@@ -1,2 +1,5 @@
+# Build + tests. Deliberately does not include the OCR extras: the build must
+# stay offline, free and deterministic.
 pypdf>=6.0
+pydantic>=2.0
 pytest>=8.0
