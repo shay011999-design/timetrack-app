@@ -230,3 +230,116 @@ def test_price_is_derived_for_receipts_that_omit_it():
     F.price_fillups(fills, CONFIG)
     assert fills[0].price_per_litre == 8.25          # the rate on 02/09
     assert fills[0].total == pytest.approx(355.02, abs=0.01)
+
+
+# ── receipts and log gaps ────────────────────────────────────────────────────
+
+PAZ_RECEIPT = '''מסמך ממוחשב
+פז קמעונאות ואנרגיה בע"מ
+אחוד עוסק 557100641
+פז עוזדנת 341
+רחוב הרצל 102 נתניה
+חשבונית מס/קבלה    מקור
+034109901437836
+24/07/26  14:38
+רכב:38855601
+משאבה: 05
+אוקטן 95  7.480 ש"ח לליטר
+כמות:  42.532 ליטרים
+סה"כ דלקים:  318.14 ש"ח
+סה"כ לפני מע"מ 269.61 ש"ח
+מע"מ לחוץ רכב 48.53 ש"ח
+סה"כ לתשלום 318.14 ש"ח כולל מע"מ'''
+
+
+def _paz_doc():
+    from pathlib import Path
+    from vehicle_maintenance.extract import ExtractedDoc
+    return ExtractedDoc(path=Path("paz.pdf"), pages=[PAZ_RECEIPT], is_scan=False)
+
+
+def test_receipt_parser_reads_the_money():
+    from vehicle_maintenance.parsers import fuel_receipt
+
+    doc = _paz_doc()
+    assert fuel_receipt.detect(doc)
+    fill, _ = fuel_receipt.parse(doc)
+    assert fill.date == date(2026, 7, 24)
+    assert fill.litres == pytest.approx(42.532)
+    assert fill.price_per_litre == pytest.approx(7.48)
+    assert fill.total == pytest.approx(318.14)
+    # the printed total must equal litres x price
+    assert fill.litres * fill.price_per_litre == pytest.approx(fill.total, abs=0.01)
+
+
+def test_receipt_has_no_odometer_and_says_so():
+    """The one field the forecast needs most is the one no receipt prints."""
+    from vehicle_maintenance.parsers import fuel_receipt
+
+    fill, warnings = fuel_receipt.parse(_paz_doc())
+    assert fill.odometer is None
+    assert any("מד אוץ" in w for w in warnings)
+
+
+def test_fill_without_odometer_counts_as_spend_but_not_consumption():
+    fills = [
+        F.Fillup(date=date(2026, 7, 24), litres=42.532, price_per_litre=7.48),
+        fill((9, 2), 162884, litres=43.033, ppl=8.25, trip=329),
+    ]
+    r = F.analyse(fills, CONFIG, km_per_year=10422, today=TODAY)
+    assert r["fillups_without_odometer"] == 1
+    assert r["recorded_spend"] == pytest.approx(318.14 + 355.02, abs=0.01)
+    assert r["measured_km"] == 329          # the July fill contributes no distance
+    assert any("ללא מד אוץ" in w for w in r["warnings"])
+
+
+def test_missing_fill_in_the_log_is_rejected_not_averaged_in():
+    """Tank-to-tank assumes consecutive fills. With one missing, the later
+    fill's litres cover only part of the distance and imply an impossible
+    consumption — that must be caught, not folded into the average."""
+    fills = [
+        fill((7, 24), 161742, litres=42.532, ppl=7.48),   # ~1,142 km earlier
+        fill((9, 2), 162884, litres=43.033, ppl=8.25),
+    ]
+    r = F.analyse(fills, CONFIG, km_per_year=10422, today=TODAY)
+    assert r["basis"] == F.ESTIMATED         # nothing measurable survived
+    assert any("חסר תדלוק" in w for w in r["warnings"])
+
+
+def test_rejected_odometer_leg_does_not_suppress_the_trip_measurement():
+    """The odometer pair spans a gap, but the later fill's own trip counter
+    still measures its tank correctly."""
+    fills = [
+        fill((7, 24), 161742, litres=42.532, ppl=7.48),
+        fill((9, 2), 162884, litres=43.033, ppl=8.25, trip=329),
+    ]
+    r = F.analyse(fills, CONFIG, km_per_year=10422, today=TODAY)
+    assert r["basis"] == F.MEASURED
+    assert [l["basis"] for l in r["legs"]] == ["trip"]
+    assert r["consumption_l_per_100km"] == pytest.approx(13.08, abs=0.01)
+
+
+def test_plausible_consumption_is_still_accepted():
+    fills = [
+        fill((7, 1), 158000, litres=40.0, ppl=8.0),
+        fill((7, 20), 158620, litres=38.5, ppl=8.0),     # 6.2 l/100km
+    ]
+    r = F.analyse(fills, CONFIG, km_per_year=8410, today=TODAY)
+    assert r["basis"] == F.MEASURED
+    assert not any("חסר תדלוק" in w for w in r["warnings"])
+
+
+def test_transcribed_scan_is_not_loaded_twice(tmp_path):
+    """A scan entered by hand must not also be reported as unparsed."""
+    import json as _json
+    import shutil
+
+    (tmp_path / "r.json").write_text(_json.dumps({
+        "date": "2026-07-24", "litres": 42.532, "price_per_litre": 7.48,
+        "document": "r.pdf",
+    }), encoding="utf-8")
+    shutil.copy(ROOT / "data" / "fuel" / "paz_2026-07-24.pdf", tmp_path / "r.pdf")
+
+    fills, warnings = F.load_fillups(tmp_path)
+    assert len(fills) == 1
+    assert warnings == []

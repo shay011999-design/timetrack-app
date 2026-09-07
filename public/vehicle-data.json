@@ -120,8 +120,52 @@
     "fuel_type": "95",
     "price_per_litre": 7.75,
     "price_source": "מחיר מרבי לבנזין 95 אוקטן, שירות עצמי, עדכון משרד האנרגיה.",
-    "fillup_count": 1,
+    "fillup_count": 2,
     "km_per_year": 10422,
+    "fillups_without_odometer": 1,
+    "fillups": [
+      {
+        "date": "2026-07-24",
+        "odometer": null,
+        "litres": 42.532,
+        "price_per_litre": 7.48,
+        "total": 318.14,
+        "station": "פז 95 — הרצל 102 נתניה",
+        "full_tank": true,
+        "km_since_last_fill": null,
+        "computer_l_per_100km": null,
+        "document": "paz_2026-07-24.pdf",
+        "source": "manual",
+        "notes": [
+          "הוזן ידנית מסריקה — לקבלה אין שכבת טקסט",
+          "חשבונית 034109901437836 · משאבה 05 · רכב 38855601",
+          "אין מד אוץ בקבלה. לא ידוע מה היה הקילומטראז' בתדלוק הזה.",
+          "אינו התדלוק שקדם ל-02/09: מחשב הדרך דיווח 329 ק\"מ בלבד מאז התדלוק הקודם, בעוד שבין התאריכים חלפו 40 ימים (~1,140 ק\"מ). חסרים תדלוקים באמצע."
+        ],
+        "l_per_100km": null
+      },
+      {
+        "date": "2026-09-02",
+        "odometer": 162884,
+        "litres": 43.033,
+        "price_per_litre": 8.25,
+        "total": 355.02,
+        "station": null,
+        "full_tank": true,
+        "km_since_last_fill": 329,
+        "computer_l_per_100km": 13.4,
+        "document": null,
+        "source": "manual",
+        "notes": [
+          "המרחק והצריכה נקראו ממחשב הדרך (מסך Since refuelling): 329 ק\"מ, 9:20 שעות, מהירות ממוצעת 35 קמ\"ש",
+          "המחיר לליטר נגזר מטבלת המחירים ב-config.json — לא הוזן מהקבלה"
+        ],
+        "l_per_100km": 13.08
+      }
+    ],
+    "warnings": [
+      "24/07/2026: תדלוק ללא מד אוץ — לא נספר בחישוב הצריכה"
+    ],
     "basis": "measured",
     "tanks_measured": 1,
     "low_confidence": true,
@@ -140,7 +184,7 @@
         "basis": "trip"
       }
     ],
-    "recorded_spend": 355.02,
+    "recorded_spend": 673.16,
     "computer_l_per_100km": 13.4,
     "computer_vs_pump_pct": 2.4,
     "cost_per_km": 1.014,

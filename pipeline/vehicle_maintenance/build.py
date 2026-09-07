@@ -70,11 +70,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--today", help="override today's date (YYYY-MM-DD), for testing")
     args = ap.parse_args(argv)
 
-    result = load(args.pdfs, args.manual)
+    result = load(args.pdfs, args.manual)  # noqa: F841 (warnings merged below)
     today = date.fromisoformat(args.today) if args.today else date.today()
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
-    fillups = fuel_mod.load_fillups(args.fuel)
+    fillups, fuel_warnings = fuel_mod.load_fillups(args.fuel)
     fuel_mod.price_fillups(fillups, config.get("fuel", {}))
 
     # Fuel receipts carry odometer readings, and they are usually far fresher
@@ -97,13 +97,15 @@ def main(argv: list[str] | None = None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps(
-            to_json(analysis, result.warnings, fuel, running),
+            to_json(analysis, result.warnings + fuel_warnings, fuel, running),
             ensure_ascii=False, indent=2,
         ),
         encoding="utf-8",
     )
 
     print(f"{len(result.visits)} ביקורים, {len(fillups)} תדלוקים -> {out}")
+    for w in fuel_warnings + (fuel.get("warnings") or []):
+        print(f"  דלק: {w}")
     print(f"  דלק: {fuel['basis']} · {fuel.get('cost_per_km')} ש\"ח/ק\"מ")
     for w in result.warnings:
         print(f"  אזהרה: {w}")

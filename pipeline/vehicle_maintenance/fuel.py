@@ -27,6 +27,12 @@ ESTIMATED = "estimated"
 # Below this many measured tanks the figure is reported as provisional.
 MIN_TANKS_FOR_CONFIDENCE = 3
 
+# Consumption a petrol car of this class can actually achieve over a full tank.
+# A leg outside this band is not a car that sipped or guzzled — it is a log with
+# a fill missing from the middle, which silently breaks tank-to-tank: the litres
+# of the later fill then describe only part of the distance being divided into.
+PLAUSIBLE_L_PER_100KM = (4.0, 20.0)
+
 
 @dataclass
 class Fillup:
@@ -100,16 +106,43 @@ def price_fillups(fillups: list[Fillup], config: dict) -> None:
                 f.total = round(f.litres * price, 2)
 
 
-def load_fillups(fuel_dir: str | Path) -> list[Fillup]:
+def load_fillups(fuel_dir: str | Path) -> tuple[list[Fillup], list[str]]:
+    """Fill-ups from hand-written JSON and from any text-layer receipt PDFs."""
+    # Imported here: the receipt parser needs Fillup from this module.
+    from .extract import extract
+    from .parsers import fuel_receipt
+
     fuel_dir = Path(fuel_dir)
     if not fuel_dir.exists():
-        return []
-    out = []
+        return [], []
+
+    out: list[Fillup] = []
+    warnings: list[str] = []
+
     for path in sorted(fuel_dir.glob("*.json")):
         d = json.loads(path.read_text(encoding="utf-8"))
         d["date"] = datetime.strptime(d["date"], "%Y-%m-%d").date()
         out.append(Fillup(**d))
-    return sorted(out, key=lambda f: f.date)
+    transcribed = {f.document for f in out if f.document}
+
+    for path in sorted(fuel_dir.glob("*.pdf")):
+        if path.name in transcribed:
+            continue                      # already entered by hand
+        doc = extract(path)
+        if doc.is_scan:
+            warnings.append(
+                f"{path.name}: סריקה ללא שכבת טקסט — נדרש תמלול ל-JSON"
+            )
+            continue
+        if not fuel_receipt.detect(doc):
+            warnings.append(f"{path.name}: לא זוהה כקבלת דלק")
+            continue
+        fill, warns = fuel_receipt.parse(doc)
+        warnings.extend(warns)
+        if fill:
+            out.append(fill)
+
+    return sorted(out, key=lambda f: f.date), warnings
 
 
 def price_at(config: dict, when: date) -> float | None:
@@ -126,7 +159,11 @@ def price_at(config: dict, when: date) -> float | None:
     return latest["price_per_litre"]
 
 
-def _legs(fillups: list[Fillup]) -> list[Leg]:
+def _plausible(leg: Leg, band: tuple[float, float]) -> bool:
+    return band[0] <= leg.l_per_100km <= band[1]
+
+
+def _legs(fillups: list[Fillup], band: tuple[float, float] = PLAUSIBLE_L_PER_100KM):
     """Consumption windows between consecutive full-tank fill-ups.
 
     A partial fill breaks the chain: the tank level at that point is unknown,
@@ -134,6 +171,7 @@ def _legs(fillups: list[Fillup]) -> list[Leg]:
     """
     usable = [f for f in fillups if f.odometer and f.litres]
     legs: list[Leg] = []
+    rejected: list[tuple[Leg, str]] = []
     closed: set[int] = set()   # ids of fills already ending a leg
 
     for a, b in zip(usable, usable[1:]):
@@ -142,13 +180,23 @@ def _legs(fillups: list[Fillup]) -> list[Leg]:
         km = b.odometer - a.odometer
         if km <= 0 or not b.litres:
             continue
-        legs.append(
-            Leg(
-                from_date=a.date, to_date=b.date, km=km,
-                litres=b.litres, cost=b.total or 0.0, basis="odometer",
-            )
+        leg = Leg(
+            from_date=a.date, to_date=b.date, km=km,
+            litres=b.litres, cost=b.total or 0.0, basis="odometer",
         )
-        closed.add(id(b))
+        if _plausible(leg, band):
+            legs.append(leg)
+            # Only an accepted leg consumes the fill. A rejected one means the
+            # odometer pair spans a gap, and the fill's own trip-computer
+            # reading may still measure its tank correctly.
+            closed.add(id(b))
+        else:
+            rejected.append((
+                leg,
+                f"{a.date:%d/%m/%Y}–{b.date:%d/%m/%Y}: {leg.km:,} ק\"מ על "
+                f"{leg.litres:.1f} ליטר = {leg.l_per_100km:.1f} ל׳/100 ק\"מ, "
+                "מחוץ לטווח הסביר — כנראה חסר תדלוק בין השניים",
+            ))
 
     # A fill the odometer chain could not close still measures a tank if the
     # trip computer recorded the distance. The odometer pair is preferred where
@@ -156,14 +204,20 @@ def _legs(fillups: list[Fillup]) -> list[Leg]:
     for f in fillups:
         if id(f) in closed or not (f.full_tank and f.litres and f.km_since_last_fill):
             continue
-        legs.append(
-            Leg(
-                from_date=f.date, to_date=f.date, km=f.km_since_last_fill,
-                litres=f.litres, cost=f.total or 0.0, basis="trip",
-            )
+        leg = Leg(
+            from_date=f.date, to_date=f.date, km=f.km_since_last_fill,
+            litres=f.litres, cost=f.total or 0.0, basis="trip",
         )
+        if _plausible(leg, band):
+            legs.append(leg)
+        else:
+            rejected.append((
+                leg,
+                f"{f.date:%d/%m/%Y}: {leg.km:,} ק\"מ על {leg.litres:.1f} ליטר = "
+                f"{leg.l_per_100km:.1f} ל׳/100 ק\"מ, מחוץ לטווח הסביר",
+            ))
 
-    return sorted(legs, key=lambda l: l.to_date)
+    return sorted(legs, key=lambda l: l.to_date), [r[1] for r in rejected]
 
 
 def analyse(
@@ -174,7 +228,13 @@ def analyse(
 ) -> dict[str, Any]:
     """Fuel picture for the dashboard: consumption, spend, and cost per km."""
     price_now = price_at(config, today)
-    legs = _legs(fillups)
+    band = tuple(config.get("plausible_l_per_100km") or PLAUSIBLE_L_PER_100KM)
+    legs, rejected = _legs(fillups, band)
+
+    # A fill with no odometer still counts toward spend, but can never close a
+    # tank or anchor the forecast — the single most useful field is the one the
+    # receipt does not print.
+    missing_odo = [f for f in fillups if f.odometer is None]
 
     result: dict[str, Any] = {
         "fuel_type": config.get("type"),
@@ -182,6 +242,22 @@ def analyse(
         "price_source": config.get("price_source"),
         "fillup_count": len(fillups),
         "km_per_year": round(km_per_year) if km_per_year else None,
+        "fillups_without_odometer": len(missing_odo),
+        "fillups": [
+            {
+                **f.to_json(),
+                # Per-fill consumption where this fill closed a tank of its own.
+                "l_per_100km": next(
+                    (round(l.l_per_100km, 2) for l in legs if l.to_date == f.date),
+                    None,
+                ),
+            }
+            for f in fillups
+        ],
+        "warnings": rejected + [
+            f"{f.date:%d/%m/%Y}: תדלוק ללא מד אוץ — לא נספר בחישוב הצריכה"
+            for f in missing_odo
+        ],
     }
 
     if legs:

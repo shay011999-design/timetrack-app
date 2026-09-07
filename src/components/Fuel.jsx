@@ -91,30 +91,53 @@ export default function Fuel({ fuel, running }) {
         </div>
       )}
 
-      {measured && fuel.legs?.length > 0 && (
+      {fuel.fillups?.length > 0 && (
         <div className="card legs">
           <table>
             <thead>
               <tr>
                 <th>תדלוק</th>
-                <th>מרחק</th>
+                <th>מד אוץ</th>
                 <th>ליטרים</th>
-                <th>ל׳/100</th>
+                <th>₪/ל׳</th>
                 <th>עלות</th>
+                <th>ל׳/100</th>
               </tr>
             </thead>
             <tbody>
-              {fuel.legs.map((l, i) => (
-                <tr key={i}>
-                  <td>{l.to_date.split("-").reverse().join("/")}</td>
-                  <td>{km(l.km)}</td>
-                  <td>{L(l.litres)}</td>
-                  <td>{L(l.l_per_100km)}</td>
-                  <td>{money(l.cost)}</td>
+              {[...fuel.fillups].reverse().map((f, i) => (
+                <tr key={i} className={f.odometer == null ? "noodo" : ""}>
+                  <td>
+                    {f.date.split("-").reverse().join("/")}
+                    {f.station ? <span className="sub">{f.station}</span> : null}
+                  </td>
+                  <td>
+                    {f.odometer == null ? (
+                      <span className="missing" title="לא נרשם — הקבלה לא מדפיסה מד אוץ">
+                        חסר
+                      </span>
+                    ) : (
+                      km(f.odometer)
+                    )}
+                  </td>
+                  <td>{L(f.litres)}</td>
+                  <td>{L(f.price_per_litre)}</td>
+                  <td>{money(f.total)}</td>
+                  <td>
+                    {f.l_per_100km ? L(f.l_per_100km) : <span className="missing">—</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {fuel.warnings?.length > 0 && (
+        <div className="card fuelwarn">
+          {fuel.warnings.map((w, i) => (
+            <div key={i}>{w}</div>
+          ))}
         </div>
       )}
 
