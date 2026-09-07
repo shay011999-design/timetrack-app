@@ -1,0 +1,22 @@
+{
+  "date": "2024-11-03",
+  "odometer": 143823,
+  "kind": "service",
+  "provider": "מוסך סלווה וודים בע\"מ",
+  "document": "טיפול_143823.pdf",
+  "source": "manual",
+  "invoice_no": "22491",
+  "labor_total": 270.0,
+  "parts_total": 335.0,
+  "total": 708.0,
+  "vat_rate": 17.0,
+  "jobs": [
+    { "description": "טיפול", "system": "general", "category": "עבודה" }
+  ],
+  "parts": [
+    { "name": "שמן מנוע", "qty": 1.0, "unit_price": 195.0, "total": 195.0, "system": "fluids" },
+    { "name": "פילטר שמן", "qty": 1.0, "unit_price": 75.0, "total": 75.0, "system": "engine" },
+    { "name": "פילטר אוויר", "qty": 1.0, "unit_price": 65.0, "total": 65.0, "system": "engine" }
+  ],
+  "notes": ["הוזן ידנית מסריקה — למסמך אין שכבת טקסט", "מספר הרישוי במסמך מודפס 38855681"]
+}

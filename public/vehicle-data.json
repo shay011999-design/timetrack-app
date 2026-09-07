@@ -1,0 +1,745 @@
+{
+  "generated_at": "2026-09-07",
+  "vehicle": {
+    "plate": "38855601",
+    "make": "סקודה",
+    "model": "אוקטביה",
+    "year": 2018,
+    "gearbox": "אוטומט",
+    "current_odometer": 153261,
+    "odometer_as_of": "2025-11-03"
+  },
+  "plan": {
+    "km": 15000,
+    "months": 12
+  },
+  "stats": {
+    "first_record": "2018-10-21",
+    "last_record": "2025-11-03",
+    "total_visits": 16,
+    "service_count": 11,
+    "repair_count": 2,
+    "inspection_count": 4,
+    "median_interval_km": 14466,
+    "mean_interval_km": 13976,
+    "median_interval_days": 271,
+    "recent_interval_km": 8473,
+    "km_per_year_recent": 8410,
+    "km_per_year_lifetime": 19863,
+    "adherence_pct": 50,
+    "estimated_odometer_today": 160353,
+    "as_of": "2026-09-07"
+  },
+  "forecast": {
+    "due_km": 161734,
+    "due_date": "2026-11-03",
+    "km_remaining": 1381,
+    "days_remaining": 57,
+    "basis_km": 8473,
+    "basis_km_per_year": 8410,
+    "estimated_odometer_today": 160353
+  },
+  "alerts": [
+    {
+      "level": "soon",
+      "title": "הטיפול הבא מתקרב",
+      "detail": "נותרו כ-57 ימים או כ-1,381 ק\"מ."
+    },
+    {
+      "level": "info",
+      "title": "5 מרווחים חרגו מהתוכנית",
+      "detail": "החריגה הגדולה ביותר: 19,572 ק\"מ בין 01/2022 ל-10/2022 (תוכנית: 15,000 ק\"מ)."
+    },
+    {
+      "level": "info",
+      "title": "אין תיעוד של מבחן רישוי עדכני",
+      "detail": "המבחן האחרון שמתועד הוא מ-03/2023. ייתכן שבוצעו מבחנים שלא תועדו במסמכים שנטענו."
+    }
+  ],
+  "wear": [
+    {
+      "system": "timing",
+      "label": "רצועת תזמון",
+      "interval_km": 120000,
+      "interval_months": 84,
+      "last_date": "2023-03-06",
+      "last_odometer": 118328,
+      "last_description": "הח' רצועת תזמון",
+      "km_since": 42025,
+      "km_to_go": 77975,
+      "months_since": 42,
+      "months_to_go": 42
+    },
+    {
+      "system": "brakes",
+      "label": "דיסקיות ורפידות",
+      "interval_km": 70000,
+      "interval_months": 72,
+      "last_date": "2023-03-06",
+      "last_odometer": 118328,
+      "last_description": "החלפת צלחות קדמיות; הח' דיסקיות קדמיות",
+      "km_since": 42025,
+      "km_to_go": 27975,
+      "months_since": 42,
+      "months_to_go": 30
+    },
+    {
+      "system": "tires",
+      "label": "צמיגים",
+      "interval_km": 60000,
+      "interval_months": 72,
+      "last_date": "2023-03-06",
+      "last_odometer": 118328,
+      "last_description": "הח' עקב בלאי / שחיקה",
+      "km_since": 42025,
+      "km_to_go": 17975,
+      "months_since": 42,
+      "months_to_go": 30
+    }
+  ],
+  "costs": {
+    "documented_visits": 2,
+    "total": 1538.0,
+    "average_per_visit": 769.0,
+    "by_system": {
+      "engine": 298.0,
+      "fluids": 470.0,
+      "labor": 540.0
+    },
+    "span_km": 9438,
+    "spend_in_span": 830.0,
+    "per_km": 0.088,
+    "covers_from": "2024-11-03",
+    "covers_to": "2025-11-03",
+    "note": "מבוסס רק על ביקורים עם חשבונית. שנות הליסינג ללא תמחור."
+  },
+  "intervals": [
+    {
+      "from_date": "2018-10-21",
+      "to_date": "2019-03-11",
+      "from_odometer": 13502,
+      "to_odometer": 28753,
+      "km": 15251,
+      "days": 141,
+      "plan_label": "30,000",
+      "over_plan": true
+    },
+    {
+      "from_date": "2019-03-11",
+      "to_date": "2019-09-12",
+      "from_odometer": 28753,
+      "to_odometer": 44913,
+      "km": 16160,
+      "days": 185,
+      "plan_label": "45,000",
+      "over_plan": true
+    },
+    {
+      "from_date": "2019-09-12",
+      "to_date": "2020-05-24",
+      "from_odometer": 44913,
+      "to_odometer": 58593,
+      "km": 13680,
+      "days": 255,
+      "plan_label": "60,000",
+      "over_plan": false
+    },
+    {
+      "from_date": "2020-05-24",
+      "to_date": "2021-03-30",
+      "from_odometer": 58593,
+      "to_odometer": 71825,
+      "km": 13232,
+      "days": 310,
+      "plan_label": "75,000",
+      "over_plan": false
+    },
+    {
+      "from_date": "2021-03-30",
+      "to_date": "2022-01-13",
+      "from_odometer": 71825,
+      "to_odometer": 88499,
+      "km": 16674,
+      "days": 289,
+      "plan_label": "90,000",
+      "over_plan": true
+    },
+    {
+      "from_date": "2022-01-13",
+      "to_date": "2022-10-27",
+      "from_odometer": 88499,
+      "to_odometer": 108071,
+      "km": 19572,
+      "days": 287,
+      "plan_label": "105,000",
+      "over_plan": true
+    },
+    {
+      "from_date": "2022-10-27",
+      "to_date": "2023-03-06",
+      "from_odometer": 108071,
+      "to_odometer": 118328,
+      "km": 10257,
+      "days": 130,
+      "plan_label": "120,000",
+      "over_plan": false
+    },
+    {
+      "from_date": "2023-03-06",
+      "to_date": "2023-10-29",
+      "from_odometer": 118328,
+      "to_odometer": 136315,
+      "km": 17987,
+      "days": 237,
+      "plan_label": "135,000",
+      "over_plan": true
+    },
+    {
+      "from_date": "2023-10-29",
+      "to_date": "2024-11-03",
+      "from_odometer": 136315,
+      "to_odometer": 143823,
+      "km": 7508,
+      "days": 371,
+      "plan_label": null,
+      "over_plan": false
+    },
+    {
+      "from_date": "2024-11-03",
+      "to_date": "2025-11-03",
+      "from_odometer": 143823,
+      "to_odometer": 153261,
+      "km": 9438,
+      "days": 365,
+      "plan_label": null,
+      "over_plan": false
+    }
+  ],
+  "visits": [
+    {
+      "date": "2018-10-21",
+      "odometer": 13502,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "15,000",
+      "jobs": [
+        {
+          "description": "15,000",
+          "system": "general",
+          "category": "טיפולים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2019-03-11",
+      "odometer": 28753,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "30,000",
+      "jobs": [
+        {
+          "description": "30,000",
+          "system": "general",
+          "category": "טיפולים"
+        },
+        {
+          "description": "הח' מסנן אויר למנוע",
+          "system": "engine",
+          "category": "מע' מנוע"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2019-09-12",
+      "odometer": 44913,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "45,000",
+      "jobs": [
+        {
+          "description": "45,000",
+          "system": "general",
+          "category": "טיפולים"
+        },
+        {
+          "description": "הח' דיסקיות קדמיות",
+          "system": "brakes",
+          "category": "מע' בלמים"
+        },
+        {
+          "description": "הח' דסקיות אחוריות",
+          "system": "brakes",
+          "category": "מע' בלמים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2020-03-06",
+      "odometer": 55600,
+      "kind": "inspection",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": null,
+      "jobs": [
+        {
+          "description": "מבחן רישוי + בד' זיהום או",
+          "system": "general",
+          "category": "כללית"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2020-05-24",
+      "odometer": 58593,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "60,000",
+      "jobs": [
+        {
+          "description": "60,000",
+          "system": "general",
+          "category": "טיפולים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2021-03-30",
+      "odometer": 71825,
+      "kind": "service",
+      "provider": "מרכז שירות מורשה",
+      "document": "services_history.pdf + טיפולים_,מקור.pdf",
+      "source": "dealer_history",
+      "invoice_no": null,
+      "plan_label": "75,000",
+      "jobs": [
+        {
+          "description": "ביקורות תקופתיות טיפול נא לבדוק לפני טסט",
+          "system": "general",
+          "category": null
+        },
+        {
+          "description": "ביקורות תקופתיות",
+          "system": "general",
+          "category": null
+        },
+        {
+          "description": "שרות בקרה",
+          "system": "general",
+          "category": null
+        },
+        {
+          "description": "75,000",
+          "system": "general",
+          "category": "טיפולים"
+        },
+        {
+          "description": "מבחן רישוי + בד' זיהום או",
+          "system": "general",
+          "category": "כללית"
+        },
+        {
+          "description": "הח' עקב בלאי / שחיקה",
+          "system": "tires",
+          "category": "צמיגים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": [
+        "תאריך חשבונית: 30/03/2021"
+      ]
+    },
+    {
+      "date": "2022-01-13",
+      "odometer": 88499,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "90,000",
+      "jobs": [
+        {
+          "description": "90,000",
+          "system": "general",
+          "category": "טיפולים"
+        },
+        {
+          "description": "הח' מסנן אויר למנוע",
+          "system": "engine",
+          "category": "מע' מנוע"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2022-01-24",
+      "odometer": null,
+      "kind": "service",
+      "provider": "מרכז שירות מורשה",
+      "document": "services_history.pdf",
+      "source": "dealer_history",
+      "invoice_no": null,
+      "plan_label": null,
+      "jobs": [],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": [
+        "תאריך חשבונית: 24/01/2022"
+      ]
+    },
+    {
+      "date": "2022-03-09",
+      "odometer": 88499,
+      "kind": "inspection",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": null,
+      "jobs": [
+        {
+          "description": "מבחן רישוי + בד' זיהום או",
+          "system": "general",
+          "category": "כללית"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2022-09-16",
+      "odometer": 88499,
+      "kind": "repair",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": null,
+      "jobs": [
+        {
+          "description": "הח' צמיג עקב נזק",
+          "system": "tires",
+          "category": "צמיגים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2022-10-27",
+      "odometer": 108071,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "105,000",
+      "jobs": [
+        {
+          "description": "105,000",
+          "system": "general",
+          "category": "טיפולים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2022-11-15",
+      "odometer": 109535,
+      "kind": "repair",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": null,
+      "jobs": [
+        {
+          "description": "הח' צמיג עקב נזק",
+          "system": "tires",
+          "category": "צמיגים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2023-03-06",
+      "odometer": 118328,
+      "kind": "service",
+      "provider": "מרכז שירות מורשה",
+      "document": "services_history.pdf + טיפולים_,מקור.pdf",
+      "source": "dealer_history",
+      "invoice_no": null,
+      "plan_label": "120,000",
+      "jobs": [
+        {
+          "description": "טיפול תקופתי טיפול",
+          "system": "general",
+          "category": null
+        },
+        {
+          "description": "רעשים ורעידות בדיקת רעשים ממנוע בנסיעה",
+          "system": "engine",
+          "category": null
+        },
+        {
+          "description": "ביקורות תקופתיות נהג חברה",
+          "system": "general",
+          "category": null
+        },
+        {
+          "description": "הח' רצועת תזמון",
+          "system": "timing",
+          "category": null
+        },
+        {
+          "description": "שרות בקרה",
+          "system": "general",
+          "category": null
+        },
+        {
+          "description": "120,000",
+          "system": "general",
+          "category": "טיפולים"
+        },
+        {
+          "description": "הח' מסנן אויר למנוע",
+          "system": "engine",
+          "category": "מע' מנוע"
+        },
+        {
+          "description": "החלפת צלחות קדמיות",
+          "system": "brakes",
+          "category": "מע' בלמים"
+        },
+        {
+          "description": "הח' דיסקיות קדמיות",
+          "system": "brakes",
+          "category": "מע' בלמים"
+        },
+        {
+          "description": "מבחן רישוי + בד' זיהום או",
+          "system": "general",
+          "category": "כללית"
+        },
+        {
+          "description": "הח' עקב בלאי / שחיקה",
+          "system": "tires",
+          "category": "צמיגים"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": [
+        "תאריך חשבונית: 12/03/2023"
+      ]
+    },
+    {
+      "date": "2023-10-29",
+      "odometer": 136315,
+      "kind": "service",
+      "provider": "אלדן",
+      "document": "טיפולים_,מקור.pdf",
+      "source": "eldan",
+      "invoice_no": null,
+      "plan_label": "135,000",
+      "jobs": [
+        {
+          "description": "135,000",
+          "system": "general",
+          "category": "טיפולים"
+        },
+        {
+          "description": "בדיקות לפי הוראות יצרן",
+          "system": "general",
+          "category": "כללית"
+        }
+      ],
+      "parts": [],
+      "labor_total": null,
+      "parts_total": null,
+      "total": null,
+      "vat_rate": null,
+      "notes": []
+    },
+    {
+      "date": "2024-11-03",
+      "odometer": 143823,
+      "kind": "service",
+      "provider": "מוסך סלווה וודים בע\"מ",
+      "document": "טיפול_143823.pdf",
+      "source": "manual",
+      "invoice_no": "22491",
+      "plan_label": null,
+      "jobs": [
+        {
+          "description": "טיפול",
+          "system": "general",
+          "category": "עבודה"
+        }
+      ],
+      "parts": [
+        {
+          "name": "שמן מנוע",
+          "qty": 1.0,
+          "unit_price": 195.0,
+          "total": 195.0,
+          "system": "fluids"
+        },
+        {
+          "name": "פילטר שמן",
+          "qty": 1.0,
+          "unit_price": 75.0,
+          "total": 75.0,
+          "system": "engine"
+        },
+        {
+          "name": "פילטר אוויר",
+          "qty": 1.0,
+          "unit_price": 65.0,
+          "total": 65.0,
+          "system": "engine"
+        }
+      ],
+      "labor_total": 270.0,
+      "parts_total": 335.0,
+      "total": 708.0,
+      "vat_rate": 17.0,
+      "notes": [
+        "הוזן ידנית מסריקה — למסמך אין שכבת טקסט",
+        "מספר הרישוי במסמך מודפס 38855681"
+      ]
+    },
+    {
+      "date": "2025-11-03",
+      "odometer": 153261,
+      "kind": "service",
+      "provider": "מוסך סלווה וודים בע\"מ",
+      "document": "טיפול_150000.pdf",
+      "source": "manual",
+      "invoice_no": "23745",
+      "plan_label": null,
+      "jobs": [
+        {
+          "description": "טיפול",
+          "system": "general",
+          "category": "עבודה"
+        }
+      ],
+      "parts": [
+        {
+          "name": "שמן",
+          "qty": 1.0,
+          "unit_price": 195.0,
+          "total": 195.0,
+          "system": "fluids"
+        },
+        {
+          "name": "פילטר שמן",
+          "qty": 1.0,
+          "unit_price": 100.0,
+          "total": 100.0,
+          "system": "engine"
+        },
+        {
+          "name": "פילטר אוויר",
+          "qty": 1.0,
+          "unit_price": 58.0,
+          "total": 58.0,
+          "system": "engine"
+        },
+        {
+          "name": "פלשינג",
+          "qty": 1.0,
+          "unit_price": 80.0,
+          "total": 80.0,
+          "system": "fluids"
+        }
+      ],
+      "labor_total": 270.0,
+      "parts_total": 433.0,
+      "total": 830.0,
+      "vat_rate": 18.0,
+      "notes": [
+        "הוזן ידנית מסריקה — למסמך אין שכבת טקסט"
+      ]
+    }
+  ],
+  "warnings": []
+}
