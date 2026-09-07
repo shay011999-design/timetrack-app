@@ -172,3 +172,71 @@ def test_read_document_uses_the_injected_extractor():
     assert seen["bytes"] > 1000              # a real page image was passed
     assert result.litres == 42.532
     assert ocr.passed(checks)
+
+
+# ── batch: what a bulk upload leaves behind ──────────────────────────────────
+
+def _bulk(tmp_path, n=3, with_text_layer=True):
+    import shutil
+    for i in range(1, n + 1):
+        shutil.copy(ROOT / "data" / "pdfs" / "טיפול_143823.pdf", tmp_path / f"inv_{i}.pdf")
+    if with_text_layer:
+        shutil.copy(ROOT / "data" / "pdfs" / "services_history.pdf", tmp_path / "text.pdf")
+    return tmp_path
+
+
+def test_batch_finds_only_the_scans(tmp_path):
+    """A text-layer document parses on its own; only scans need this step."""
+    names = [p.name for p in ocr.outstanding_scans(_bulk(tmp_path), "fuel")]
+    assert names == ["inv_1.pdf", "inv_2.pdf", "inv_3.pdf"]
+
+
+def test_batch_skips_already_transcribed(tmp_path):
+    import json as _json
+
+    _bulk(tmp_path, n=3, with_text_layer=False)
+    (tmp_path / "rec.json").write_text(
+        _json.dumps({"date": "2024-11-03", "document": "inv_2.pdf"}), encoding="utf-8"
+    )
+    names = [p.name for p in ocr.outstanding_scans(tmp_path, "fuel")]
+    assert names == ["inv_1.pdf", "inv_3.pdf"]
+
+
+def test_batch_is_empty_when_everything_is_covered():
+    """The repo's own scans are all transcribed, so nothing is outstanding."""
+    assert ocr.outstanding_scans(ROOT / "data" / "pdfs", "service") == []
+    assert ocr.outstanding_scans(ROOT / "data" / "fuel", "fuel") == []
+
+
+def test_batch_isolates_a_failure_and_continues(tmp_path, monkeypatch, capsys):
+    """One bad reading must not stop the others, and must be named at the end."""
+    _bulk(tmp_path, n=3, with_text_layer=False)
+
+    calls = {"n": 0}
+
+    def fake(image, media_type, schema):
+        calls["n"] += 1
+        return garage_correct(total=20000.0) if calls["n"] == 2 else garage_correct()
+
+    monkeypatch.setattr(ocr, "claude_extractor", fake)
+    rc = ocr.main([str(tmp_path), "--kind", "service", "--all"])
+
+    out = capsys.readouterr().out
+    assert calls["n"] == 3                      # all three were attempted
+    assert "2/3" in out
+    assert "inv_2.pdf" in out.split("דורשים טיפול ידני")[-1]
+    assert rc == 1                              # non-zero: something needs a human
+
+
+def test_batch_writes_only_what_verifies(tmp_path, monkeypatch):
+    import shutil
+
+    scans = tmp_path / "scans"
+    scans.mkdir()
+    shutil.copy(ROOT / "data" / "pdfs" / "טיפול_143823.pdf", scans / "ok.pdf")
+    monkeypatch.setattr(ocr, "claude_extractor", lambda i, m, s: garage_correct())
+    monkeypatch.setattr(ocr, "HERE", tmp_path)
+
+    assert ocr.main([str(scans), "--kind", "service", "--all", "--write"]) == 0
+    written = list((tmp_path / "data" / "manual").glob("*.json"))
+    assert [p.name for p in written] == ["2024-11-03.json"]

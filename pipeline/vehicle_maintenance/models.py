@@ -103,8 +103,32 @@ class Vehicle:
         return d
 
 
+# What happened to one source file. With documents arriving one at a time the
+# warnings alone were enough; dropping a batch in at once, you need every file
+# accounted for — including the ones that worked — or there is no way to tell a
+# file that parsed from one that was silently skipped.
+PARSED = "parsed"                          # text layer, a parser understood it
+TRANSCRIBED = "transcribed"                # scan, covered by a JSON record
+NEEDS_TRANSCRIPTION = "needs_transcription"  # scan, nothing covers it yet
+UNRECOGNISED = "unrecognised"              # readable, but no parser matched
+
+
+@dataclass
+class Document:
+    name: str
+    kind: str                    # "service" | "fuel"
+    status: str
+    parser: str | None = None
+    records: int = 0
+    detail: str | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 @dataclass
 class ParseResult:
     vehicle: Vehicle
     visits: list[Visit]
     warnings: list[str] = field(default_factory=list)
+    documents: list[Document] = field(default_factory=list)

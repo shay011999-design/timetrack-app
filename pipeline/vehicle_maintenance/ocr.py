@@ -20,6 +20,7 @@ gets committed and reviewed like any hand-written one.
 
     python -m vehicle_maintenance.ocr data/fuel/paz_2026-07-24.pdf --kind fuel
     python -m vehicle_maintenance.ocr <file> --kind service --write
+    python -m vehicle_maintenance.ocr data/pdfs --kind service --all --write
 """
 
 from __future__ import annotations
@@ -306,14 +307,98 @@ def read_document(
 HERE = Path(__file__).resolve().parent.parent
 
 
+def outstanding_scans(directory: str | Path, kind: str) -> list[Path]:
+    """Scans in a directory that nothing has transcribed yet.
+
+    This is the state a bulk upload leaves behind: several PDFs arrive at once,
+    the text-layer ones parse on the next build, and the scans sit there. These
+    are those, so a batch can be worked through in one pass.
+    """
+    directory = Path(directory)
+    covered: set[str] = set()
+    records = directory if kind == "fuel" else HERE / "data" / "manual"
+    for rec in records.glob("*.json"):
+        try:
+            doc = json.loads(rec.read_text(encoding="utf-8")).get("document")
+        except (json.JSONDecodeError, OSError):
+            continue
+        if doc:
+            covered.add(doc)
+
+    out = []
+    for path in sorted(directory.glob("*.pdf")):
+        if path.name in covered:
+            continue
+        try:
+            if extract(path).is_scan:
+                out.append(path)
+        except Exception:                   # noqa: BLE001 — unreadable file
+            continue
+    return out
+
+
+def _run_batch(args) -> int:
+    scans = outstanding_scans(args.path, args.kind)
+    if not scans:
+        print("אין סריקות שממתינות לתמלול.")
+        return 0
+
+    print(f"{len(scans)} סריקות ממתינות:\n")
+    failed: list[str] = []
+    for path in scans:
+        print(f"── {path.name}")
+        try:
+            result, checks = read_document(path, args.kind)
+        except Exception as e:              # noqa: BLE001 — reported per file
+            print(f"   שגיאה: {e}\n")
+            failed.append(path.name)
+            continue
+
+        record = (
+            fuel_record(result, path.name) if args.kind == "fuel"
+            else service_record(result, path.name)
+        )
+        for c in checks:
+            print(f"   {'✓' if c.ok else '✗'} {c.name}: {c.detail}")
+
+        if not passed(checks) and not args.force:
+            print("   לא נשמר — האימות נכשל.\n")
+            failed.append(path.name)
+            continue
+        if not args.write:
+            print("   (הרצה יבשה)\n")
+            continue
+
+        folder = HERE / "data" / ("fuel" if args.kind == "fuel" else "manual")
+        out = folder / f"{record['date']}.json"
+        folder.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"   נשמר: {out}\n")
+
+    done = len(scans) - len(failed)
+    print(f"סיכום: {done}/{len(scans)} עברו אימות.")
+    if failed:
+        print("דורשים טיפול ידני: " + ", ".join(failed))
+    return 1 if failed else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="קריאת חשבונית סרוקה באמצעות מודל ראייה.")
-    ap.add_argument("path")
+    ap.add_argument("path", help="קובץ, או תיקייה יחד עם --all")
+    ap.add_argument(
+        "--all", action="store_true",
+        help="עיבוד כל הסריקות בתיקייה שעדיין לא תומללו",
+    )
     ap.add_argument("--kind", choices=("fuel", "service"), required=True)
     ap.add_argument("--write", action="store_true", help="שמירת הרשומה לתיקיית הנתונים")
     ap.add_argument("--force", action="store_true", help="שמירה גם אם האימות נכשל")
     ap.add_argument("--out", help="נתיב יעד; ברירת מחדל לפי סוג המסמך")
     args = ap.parse_args(argv)
+
+    if args.all:
+        return _run_batch(args)
 
     try:
         result, checks = read_document(args.path, args.kind)

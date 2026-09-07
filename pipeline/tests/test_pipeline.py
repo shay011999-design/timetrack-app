@@ -214,3 +214,53 @@ def test_repeated_odometer_does_not_drag_the_rate_down(result):
     the rate is taken across window endpoints so those cannot dilute it."""
     a = analyze(result.vehicle, result.visits, today=TODAY)
     assert a.stats["km_per_year_recent"] > 5_000
+
+
+# ── every source file is accounted for ───────────────────────────────────────
+
+def test_every_document_gets_a_status(result):
+    """Dropping a batch in at once, the failures alone are not enough — a file
+    that parsed and a file that was skipped must be distinguishable."""
+    from vehicle_maintenance.models import (
+        NEEDS_TRANSCRIPTION, PARSED, TRANSCRIBED, UNRECOGNISED,
+    )
+
+    pdfs = {p.name for p in PDFS.glob("*.pdf")}
+    assert {d.name for d in result.documents} == pdfs
+    assert all(
+        d.status in (PARSED, TRANSCRIBED, NEEDS_TRANSCRIPTION, UNRECOGNISED)
+        for d in result.documents
+    )
+
+
+def test_parsed_documents_report_what_they_produced(result):
+    from vehicle_maintenance.models import PARSED
+
+    parsed = [d for d in result.documents if d.status == PARSED]
+    assert parsed
+    assert all(d.records > 0 and d.parser for d in parsed)
+
+
+def test_scans_are_marked_transcribed_not_failed(result):
+    """These two scans are covered by hand-written records, so they are done —
+    not outstanding work."""
+    from vehicle_maintenance.models import TRANSCRIBED
+
+    by_name = {d.name: d for d in result.documents}
+    assert by_name["טיפול_143823.pdf"].status == TRANSCRIBED
+    assert by_name["טיפול_150000.pdf"].status == TRANSCRIBED
+
+
+def test_an_uncovered_scan_is_reported_as_outstanding(tmp_path):
+    """The case a bulk upload creates: a scan lands with nothing covering it."""
+    import shutil
+
+    from vehicle_maintenance.load import load
+    from vehicle_maintenance.models import NEEDS_TRANSCRIPTION
+
+    shutil.copy(PDFS / "טיפול_143823.pdf", tmp_path / "new_scan.pdf")
+    r = load(tmp_path, None)
+    assert [(d.name, d.status) for d in r.documents] == [
+        ("new_scan.pdf", NEEDS_TRANSCRIPTION)
+    ]
+    assert r.warnings

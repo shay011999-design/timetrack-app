@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./styles.css";
 
 import Alerts from "./components/Alerts.jsx";
+import Documents from "./components/Documents.jsx";
 import Fuel from "./components/Fuel.jsx";
 import IntervalChart from "./components/IntervalChart.jsx";
 import Kpis from "./components/Kpis.jsx";
@@ -37,7 +38,7 @@ export default function App() {
   if (!data) return <div className="wrap"><div className="empty">טוען…</div></div>;
 
   const { vehicle, stats, forecast, costs, plan, alerts, wear, intervals, visits, warnings } = data;
-  const { fuel, running_costs: running, repo } = data;
+  const { fuel, running_costs: running, repo, documents } = data;
   const odoNow = forecast.estimated_odometer_today ?? vehicle.current_odometer;
 
   return (
@@ -89,6 +90,7 @@ export default function App() {
       <IntervalChart intervals={intervals} planKm={plan.km} />
       <Wear wear={wear} />
       <Timeline visits={visits} repo={repo} />
+      <Documents documents={documents} repo={repo} />
 
       <footer className="foot">
         <div>

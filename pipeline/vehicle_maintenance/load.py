@@ -8,7 +8,18 @@ from pathlib import Path
 
 from . import parsers
 from .extract import extract
-from .models import Job, Part, ParseResult, Vehicle, Visit
+from .models import (
+    NEEDS_TRANSCRIPTION,
+    PARSED,
+    TRANSCRIBED,
+    UNRECOGNISED,
+    Document,
+    Job,
+    Part,
+    ParseResult,
+    Vehicle,
+    Visit,
+)
 
 # Two records describe the same visit when they are this close on both axes.
 # The importer and the leasing company read the odometer at different moments,
@@ -82,6 +93,7 @@ def load(pdf_dir: str | Path, manual_dir: str | Path | None = None) -> ParseResu
     vehicle = Vehicle()
     collected: list[Visit] = []
     warnings: list[str] = []
+    documents: list[Document] = []
 
     # Load hand-transcribed records first, so a scan they already cover does
     # not also get reported as missing.
@@ -96,15 +108,30 @@ def load(pdf_dir: str | Path, manual_dir: str | Path | None = None) -> ParseResu
         parser = parsers.for_doc(doc)
         if parser is None:
             if path.name in transcribed:
-                pass  # covered by a manual transcript
+                documents.append(Document(
+                    path.name, "service", TRANSCRIBED,
+                    records=sum(1 for v in manual if v.document == path.name),
+                    detail="סריקה שתומללה ידנית",
+                ))
             elif doc.is_scan:
+                documents.append(Document(
+                    path.name, "service", NEEDS_TRANSCRIPTION,
+                    detail="סריקה ללא שכבת טקסט",
+                ))
                 warnings.append(
                     f"{path.name}: סריקה ללא שכבת טקסט — נדרש תמלול ב-data/manual"
                 )
             else:
+                documents.append(Document(
+                    path.name, "service", UNRECOGNISED, detail="פורמט לא מוכר"
+                ))
                 warnings.append(f"{path.name}: לא זוהה פורמט מוכר")
             continue
         result = parser.parse(doc)
+        documents.append(Document(
+            path.name, "service", PARSED, parser=parser.NAME,
+            records=len(result.visits),
+        ))
         vehicle.merge(result.vehicle)
         collected.extend(result.visits)
         warnings.extend(result.warnings)
@@ -136,4 +163,6 @@ def load(pdf_dir: str | Path, manual_dir: str | Path | None = None) -> ParseResu
             vehicle.current_odometer = last.odometer
             vehicle.odometer_as_of = last.date
 
-    return ParseResult(vehicle=vehicle, visits=merged, warnings=warnings)
+    return ParseResult(
+        vehicle=vehicle, visits=merged, warnings=warnings, documents=documents
+    )

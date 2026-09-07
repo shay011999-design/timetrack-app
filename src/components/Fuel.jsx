@@ -32,7 +32,7 @@ export default function Fuel({ fuel, running, repo }) {
           repo={repo}
           dir={repo?.fuel_dir ?? "pipeline/data/fuel"}
           label="העלאת קבלה"
-          hint="גוררים קובץ קבלה; קבלה עם שכבת טקסט נקראת אוטומטית"
+          hint="אפשר לגרור כמה קבצים יחד; קבלה עם שכבת טקסט נקראת אוטומטית"
         />
       </h2>
 

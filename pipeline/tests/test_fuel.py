@@ -371,6 +371,8 @@ def test_transcribed_scan_is_not_loaded_twice(tmp_path):
     }), encoding="utf-8")
     shutil.copy(ROOT / "data" / "fuel" / "paz_2026-07-24.pdf", tmp_path / "r.pdf")
 
-    fills, warnings = F.load_fillups(tmp_path)
+    fills, warnings, documents = F.load_fillups(tmp_path)
     assert len(fills) == 1
     assert warnings == []
+    # The PDF is still accounted for, as covered rather than ignored.
+    assert [(d.name, d.status) for d in documents] == [("r.pdf", "transcribed")]

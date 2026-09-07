@@ -104,7 +104,7 @@ export default function Timeline({ visits, repo }) {
           repo={repo}
           dir={repo?.docs_dir ?? "pipeline/data/pdfs"}
           label="העלאת חשבונית"
-          hint="חשבונית מוסך או דו״ח טיפולים; מסמך עם שכבת טקסט נקרא אוטומטית"
+          hint="אפשר לגרור כמה קבצים יחד; מסמך עם שכבת טקסט נקרא אוטומטית"
         />
       </h2>
       <div className="timeline">

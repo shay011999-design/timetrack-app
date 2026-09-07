@@ -24,11 +24,13 @@ def to_json(
     fuel: dict | None = None,
     running: dict | None = None,
     repo: dict | None = None,
+    documents: list | None = None,
 ) -> dict:
     return {
         "generated_at": date.today().isoformat(),
         "vehicle": analysis.vehicle.to_json(),
         "repo": repo,
+        "documents": [d.to_json() for d in (documents or [])],
         "plan": {"km": analysis.plan_km, "months": analysis.plan_months},
         "stats": analysis.stats,
         "forecast": {
@@ -76,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     today = date.fromisoformat(args.today) if args.today else date.today()
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
-    fillups, fuel_warnings = fuel_mod.load_fillups(args.fuel)
+    fillups, fuel_warnings, fuel_docs = fuel_mod.load_fillups(args.fuel)
     fuel_mod.price_fillups(fillups, config.get("fuel", {}))
 
     # Fuel receipts carry odometer readings, and they are usually far fresher
@@ -102,13 +104,19 @@ def main(argv: list[str] | None = None) -> int:
             to_json(
                 analysis, result.warnings + fuel_warnings, fuel, running,
                 repo=config.get("repo"),
+                documents=result.documents + fuel_docs,
             ),
             ensure_ascii=False, indent=2,
         ),
         encoding="utf-8",
     )
 
-    print(f"{len(result.visits)} ביקורים, {len(fillups)} תדלוקים -> {out}")
+    docs = result.documents + fuel_docs
+    need = [d for d in docs if d.status != "parsed" and d.status != "transcribed"]
+    print(
+        f"{len(result.visits)} ביקורים, {len(fillups)} תדלוקים, "
+        f"{len(docs)} מסמכים ({len(need)} דורשים טיפול) -> {out}"
+    )
     for w in fuel_warnings + (fuel.get("warnings") or []):
         print(f"  דלק: {w}")
     print(f"  דלק: {fuel['basis']} · {fuel.get('cost_per_km')} ש\"ח/ק\"מ")

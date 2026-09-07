@@ -17,6 +17,48 @@
     "_comment": "משמש את טופס הוספת התדלוק בדשבורד, כדי לבנות קישור לקומיט ב-GitHub.",
     "docs_dir": "pipeline/data/pdfs"
   },
+  "documents": [
+    {
+      "name": "services_history.pdf",
+      "kind": "service",
+      "status": "parsed",
+      "parser": "dealer_history",
+      "records": 3,
+      "detail": null
+    },
+    {
+      "name": "טיפול_143823.pdf",
+      "kind": "service",
+      "status": "transcribed",
+      "parser": null,
+      "records": 1,
+      "detail": "סריקה שתומללה ידנית"
+    },
+    {
+      "name": "טיפול_150000.pdf",
+      "kind": "service",
+      "status": "transcribed",
+      "parser": null,
+      "records": 1,
+      "detail": "סריקה שתומללה ידנית"
+    },
+    {
+      "name": "טיפולים_,מקור.pdf",
+      "kind": "service",
+      "status": "parsed",
+      "parser": "eldan",
+      "records": 16,
+      "detail": null
+    },
+    {
+      "name": "paz_2026-07-24.pdf",
+      "kind": "fuel",
+      "status": "transcribed",
+      "parser": null,
+      "records": 1,
+      "detail": "סריקה שתומללה ידנית"
+    }
+  ],
   "plan": {
     "km": 15000,
     "months": 12

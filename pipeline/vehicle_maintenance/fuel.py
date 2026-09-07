@@ -110,18 +110,26 @@ def price_fillups(fillups: list[Fillup], config: dict) -> None:
                 f.total = round(f.litres * price, 2)
 
 
-def load_fillups(fuel_dir: str | Path) -> tuple[list[Fillup], list[str]]:
-    """Fill-ups from hand-written JSON and from any text-layer receipt PDFs."""
+def load_fillups(fuel_dir: str | Path):
+    """Fill-ups from hand-written JSON and from any text-layer receipt PDFs.
+
+    Returns the fill-ups, any warnings, and a status for every PDF seen — so a
+    batch of receipts dropped in at once can be accounted for file by file.
+    """
     # Imported here: the receipt parser needs Fillup from this module.
     from .extract import extract
+    from .models import (
+        NEEDS_TRANSCRIPTION, PARSED, TRANSCRIBED, UNRECOGNISED, Document,
+    )
     from .parsers import fuel_receipt
 
     fuel_dir = Path(fuel_dir)
     if not fuel_dir.exists():
-        return [], []
+        return [], [], []
 
     out: list[Fillup] = []
     warnings: list[str] = []
+    documents: list[Document] = []
 
     for path in sorted(fuel_dir.glob("*.json")):
         d = json.loads(path.read_text(encoding="utf-8"))
@@ -131,22 +139,36 @@ def load_fillups(fuel_dir: str | Path) -> tuple[list[Fillup], list[str]]:
 
     for path in sorted(fuel_dir.glob("*.pdf")):
         if path.name in transcribed:
+            documents.append(Document(
+                path.name, "fuel", TRANSCRIBED,
+                records=sum(1 for f in out if f.document == path.name),
+                detail="סריקה שתומללה ידנית",
+            ))
             continue                      # already entered by hand
         doc = extract(path)
         if doc.is_scan:
+            documents.append(Document(
+                path.name, "fuel", NEEDS_TRANSCRIPTION, detail="סריקה ללא שכבת טקסט"
+            ))
             warnings.append(
                 f"{path.name}: סריקה ללא שכבת טקסט — נדרש תמלול ל-JSON"
             )
             continue
         if not fuel_receipt.detect(doc):
+            documents.append(Document(
+                path.name, "fuel", UNRECOGNISED, detail="לא זוהה כקבלת דלק"
+            ))
             warnings.append(f"{path.name}: לא זוהה כקבלת דלק")
             continue
         fill, warns = fuel_receipt.parse(doc)
         warnings.extend(warns)
         if fill:
             out.append(fill)
+            documents.append(Document(
+                path.name, "fuel", PARSED, parser=fuel_receipt.NAME, records=1
+            ))
 
-    return sorted(out, key=lambda f: f.date), warnings
+    return sorted(out, key=lambda f: f.date), warnings, documents
 
 
 def price_at(config: dict, when: date) -> float | None:
