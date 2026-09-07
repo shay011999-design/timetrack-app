@@ -182,17 +182,48 @@ def test_single_fill_without_trip_distance_cannot_measure():
     assert r["basis"] == F.ESTIMATED
 
 
-def test_odometer_pair_wins_over_the_trip_counter():
-    """A trip counter can be reset mid-tank; an odometer cannot, so where both
-    describe the same tank the odometer difference is the one used."""
+def test_agreeing_sources_use_the_odometer():
+    """When both describe the same tank they are interchangeable, and the
+    odometer is the more precise of the two."""
     r = F.analyse(
         [fill((7, 1), 158000, litres=40.0, ppl=8.10),
-         fill((7, 20), 158620, litres=38.5, ppl=8.10, trip=999)],
+         fill((7, 20), 158620, litres=38.5, ppl=8.10, trip=615)],   # within 15%
         CONFIG, km_per_year=8410, today=TODAY,
     )
     assert len(r["legs"]) == 1
     assert r["legs"][0]["basis"] == "odometer"
     assert r["legs"][0]["km"] == 620
+    assert r["warnings"] == []
+
+
+def test_disagreeing_sources_trust_the_trip_counter():
+    """The odometer gap measures distance since the last *logged* fill; the trip
+    counter measures distance since the last *actual* one, because it resets
+    whether or not the fill was written down. A large gap between them means
+    fills are missing, and the trip counter is the one describing this tank."""
+    r = F.analyse(
+        [fill((9, 2), 162884, litres=43.033, ppl=8.25, trip=329),
+         fill((9, 20), 163900, litres=41.2, ppl=7.75, trip=380)],
+        CONFIG, km_per_year=10422, today=date(2026, 9, 25),
+    )
+    latest = r["legs"][-1]
+    assert latest["basis"] == "trip"
+    assert latest["km"] == 380                      # not the 1,016 km odometer gap
+    assert latest["l_per_100km"] == pytest.approx(10.84, abs=0.01)
+    assert any("שלא נרשמו" in w for w in r["warnings"])
+
+
+def test_a_plausible_looking_number_from_a_gap_is_still_caught():
+    """The danger case: the odometer gap yields 4.06 L/100km, just inside the
+    plausible band, so the band alone would let it through and halve the
+    measured consumption. The disagreement is what catches it."""
+    r = F.analyse(
+        [fill((9, 2), 162884, litres=43.033, ppl=8.25, trip=329),
+         fill((9, 20), 163900, litres=41.2, ppl=7.75, trip=380)],
+        CONFIG, km_per_year=10422, today=date(2026, 9, 25),
+    )
+    assert all(l["l_per_100km"] > 5 for l in r["legs"])
+    assert r["consumption_l_per_100km"] == pytest.approx(11.88, abs=0.01)
 
 
 def test_one_tank_is_flagged_as_provisional():

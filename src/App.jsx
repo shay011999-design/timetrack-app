@@ -37,7 +37,7 @@ export default function App() {
   if (!data) return <div className="wrap"><div className="empty">טוען…</div></div>;
 
   const { vehicle, stats, forecast, costs, plan, alerts, wear, intervals, visits, warnings } = data;
-  const { fuel, running_costs: running } = data;
+  const { fuel, running_costs: running, repo } = data;
   const odoNow = forecast.estimated_odometer_today ?? vehicle.current_odometer;
 
   return (
@@ -85,7 +85,7 @@ export default function App() {
         <Kpis stats={stats} forecast={forecast} costs={costs} plan={plan} />
       </section>
 
-      <Fuel fuel={fuel} running={running} />
+      <Fuel fuel={fuel} running={running} repo={repo} />
       <IntervalChart intervals={intervals} planKm={plan.km} />
       <Wear wear={wear} />
       <Timeline visits={visits} />

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import AddFillup from "./AddFillup.jsx";
 import { km, money } from "../format.js";
 
 const L = (n, digits = 2) =>
@@ -6,7 +8,8 @@ const L = (n, digits = 2) =>
 // Fuel is usually the largest running cost, so the split against servicing is
 // the point of this section — and the basis badge says whether the fuel half is
 // measured from receipts or projected from mileage.
-export default function Fuel({ fuel, running }) {
+export default function Fuel({ fuel, running, repo }) {
+  const [adding, setAdding] = useState(false);
   if (!fuel) return null;
   const measured = fuel.basis === "measured";
 
@@ -21,7 +24,14 @@ export default function Fuel({ fuel, running }) {
               ? "נמדד ממיכל אחד — ארעי"
               : `נמדד מ-${fuel.tanks_measured} מיכלים`}
         </span>
+        <button className="addbtn" onClick={() => setAdding((v) => !v)}>
+          {adding ? "ביטול" : "+ תדלוק"}
+        </button>
       </h2>
+
+      {adding && (
+        <AddFillup fuel={fuel} repo={repo} onClose={() => setAdding(false)} />
+      )}
 
       <div className="kpis">
         <div className="card kpi">

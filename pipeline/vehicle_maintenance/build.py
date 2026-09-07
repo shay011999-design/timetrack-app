@@ -23,10 +23,12 @@ def to_json(
     warnings: list[str],
     fuel: dict | None = None,
     running: dict | None = None,
+    repo: dict | None = None,
 ) -> dict:
     return {
         "generated_at": date.today().isoformat(),
         "vehicle": analysis.vehicle.to_json(),
+        "repo": repo,
         "plan": {"km": analysis.plan_km, "months": analysis.plan_months},
         "stats": analysis.stats,
         "forecast": {
@@ -97,7 +99,10 @@ def main(argv: list[str] | None = None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps(
-            to_json(analysis, result.warnings + fuel_warnings, fuel, running),
+            to_json(
+                analysis, result.warnings + fuel_warnings, fuel, running,
+                repo=config.get("repo"),
+            ),
             ensure_ascii=False, indent=2,
         ),
         encoding="utf-8",

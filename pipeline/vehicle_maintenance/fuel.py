@@ -33,6 +33,10 @@ MIN_TANKS_FOR_CONFIDENCE = 3
 # of the later fill then describe only part of the distance being divided into.
 PLAUSIBLE_L_PER_100KM = (4.0, 20.0)
 
+# How far the odometer gap and the trip computer may differ before they are
+# treated as describing different things rather than the same tank.
+DISTANCE_AGREEMENT = 0.15
+
 
 @dataclass
 class Fillup:
@@ -163,61 +167,73 @@ def _plausible(leg: Leg, band: tuple[float, float]) -> bool:
     return band[0] <= leg.l_per_100km <= band[1]
 
 
-def _legs(fillups: list[Fillup], band: tuple[float, float] = PLAUSIBLE_L_PER_100KM):
-    """Consumption windows between consecutive full-tank fill-ups.
+def _distance_for(b: Fillup, prev: Fillup | None) -> tuple[int | None, str, str | None]:
+    """How far this tank went, and how we know.
 
-    A partial fill breaks the chain: the tank level at that point is unknown,
-    so no window can be closed across it.
+    Two sources can answer, and they answer different questions. The odometer
+    gap measures distance since the *last logged* fill; the trip computer
+    measures distance since the *actual* last fill, because it resets at every
+    refuelling whether or not anyone wrote it down.
+
+    So when they disagree the odometer gap is spanning fills missing from the
+    log, and the trip counter is the one describing this tank. They are only
+    interchangeable when they agree, and there the odometer is preferred as the
+    more precise of the two.
     """
-    usable = [f for f in fillups if f.odometer and f.litres]
+    trip = b.km_since_last_fill
+    gap = None
+    if b.odometer and prev and prev.odometer and b.odometer > prev.odometer:
+        gap = b.odometer - prev.odometer
+
+    if gap and trip:
+        if abs(gap - trip) <= DISTANCE_AGREEMENT * trip:
+            return gap, "odometer", None
+        return trip, "trip", (
+            f"{b.date:%d/%m/%Y}: מד האוץ מראה {gap:,} ק\"מ מהתדלוק הרשום הקודם, "
+            f"אבל מחשב הדרך מדווח {trip:,} ק\"מ מאז התדלוק בפועל — כלומר יש "
+            "תדלוקים שלא נרשמו ביניהם. החישוב מסתמך על מחשב הדרך."
+        )
+    if gap:
+        return gap, "odometer", None
+    if trip:
+        return trip, "trip", None
+    return None, "none", None
+
+
+def _legs(fillups: list[Fillup], band: tuple[float, float] = PLAUSIBLE_L_PER_100KM):
     legs: list[Leg] = []
-    rejected: list[tuple[Leg, str]] = []
-    closed: set[int] = set()   # ids of fills already ending a leg
+    notes: list[str] = []
+    prev: Fillup | None = None
 
-    for a, b in zip(usable, usable[1:]):
-        if not (a.full_tank and b.full_tank):
-            continue
-        km = b.odometer - a.odometer
-        if km <= 0 or not b.litres:
-            continue
-        leg = Leg(
-            from_date=a.date, to_date=b.date, km=km,
-            litres=b.litres, cost=b.total or 0.0, basis="odometer",
-        )
-        if _plausible(leg, band):
-            legs.append(leg)
-            # Only an accepted leg consumes the fill. A rejected one means the
-            # odometer pair spans a gap, and the fill's own trip-computer
-            # reading may still measure its tank correctly.
-            closed.add(id(b))
-        else:
-            rejected.append((
-                leg,
-                f"{a.date:%d/%m/%Y}–{b.date:%d/%m/%Y}: {leg.km:,} ק\"מ על "
-                f"{leg.litres:.1f} ליטר = {leg.l_per_100km:.1f} ל׳/100 ק\"מ, "
-                "מחוץ לטווח הסביר — כנראה חסר תדלוק בין השניים",
-            ))
-
-    # A fill the odometer chain could not close still measures a tank if the
-    # trip computer recorded the distance. The odometer pair is preferred where
-    # both exist: a trip counter can be reset mid-tank, an odometer cannot.
     for f in fillups:
-        if id(f) in closed or not (f.full_tank and f.litres and f.km_since_last_fill):
+        if not (f.full_tank and f.litres):
+            # A partial fill leaves the tank level unknown, so nothing can be
+            # measured across it — and it cannot anchor the next tank either.
+            prev = None if not f.full_tank else f
             continue
+
+        dist, basis, note = _distance_for(f, prev)
+        prev = f
+        if note:
+            notes.append(note)
+        if not dist:
+            continue
+
         leg = Leg(
-            from_date=f.date, to_date=f.date, km=f.km_since_last_fill,
-            litres=f.litres, cost=f.total or 0.0, basis="trip",
+            from_date=prev.date if basis == "trip" else f.date,
+            to_date=f.date, km=dist, litres=f.litres,
+            cost=f.total or 0.0, basis=basis,
         )
         if _plausible(leg, band):
             legs.append(leg)
         else:
-            rejected.append((
-                leg,
+            notes.append(
                 f"{f.date:%d/%m/%Y}: {leg.km:,} ק\"מ על {leg.litres:.1f} ליטר = "
-                f"{leg.l_per_100km:.1f} ל׳/100 ק\"מ, מחוץ לטווח הסביר",
-            ))
+                f"{leg.l_per_100km:.1f} ל׳/100 ק\"מ, מחוץ לטווח הסביר — "
+                "בדקו את הנתונים או שחסר תדלוק ברצף"
+            )
 
-    return sorted(legs, key=lambda l: l.to_date), [r[1] for r in rejected]
+    return sorted(legs, key=lambda l: l.to_date), notes
 
 
 def analyse(
@@ -229,7 +245,7 @@ def analyse(
     """Fuel picture for the dashboard: consumption, spend, and cost per km."""
     price_now = price_at(config, today)
     band = tuple(config.get("plausible_l_per_100km") or PLAUSIBLE_L_PER_100KM)
-    legs, rejected = _legs(fillups, band)
+    legs, leg_notes = _legs(fillups, band)
 
     # A fill with no odometer still counts toward spend, but can never close a
     # tank or anchor the forecast — the single most useful field is the one the
@@ -243,6 +259,9 @@ def analyse(
         "fillup_count": len(fillups),
         "km_per_year": round(km_per_year) if km_per_year else None,
         "fillups_without_odometer": len(missing_odo),
+        # Published so the dashboard's entry form can warn by the same rule the
+        # pipeline applies, rather than a hand-copied duplicate of it.
+        "plausible_l_per_100km": list(band),
         "fillups": [
             {
                 **f.to_json(),
@@ -254,7 +273,7 @@ def analyse(
             }
             for f in fillups
         ],
-        "warnings": rejected + [
+        "warnings": leg_notes + [
             f"{f.date:%d/%m/%Y}: תדלוק ללא מד אוץ — לא נספר בחישוב הצריכה"
             for f in missing_odo
         ],

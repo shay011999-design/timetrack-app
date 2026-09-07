@@ -229,3 +229,68 @@ section > h2 .basis.provisional { background: var(--accent-soft); color: var(--a
 .fuelwarn div + div { margin-top: 6px; }
 
 .basisnote { margin-top: 10px; font-size: 12.5px; color: var(--faint); line-height: 1.6; }
+
+/* ── add fill-up ────────────────────────────────────────────────────────── */
+.addbtn {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  margin-inline-start: 10px; padding: 3px 11px; border-radius: 20px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  background: var(--accent); color: #fff;
+}
+.addbtn:hover { filter: brightness(1.08); }
+.addbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.sheet {
+  margin-top: 12px; padding: 16px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.sheethead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.sheethead h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.sheethead .x { all: unset; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 6px; }
+.sheethead .x:hover { background: var(--surface-2); color: var(--text); }
+
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.fields label.wide { grid-column: 1 / -1; }
+.fields label > span { font-size: 12.5px; color: var(--muted); }
+.fields label > span em { font-style: normal; color: var(--faint); font-size: 11.5px; margin-inline-start: 5px; }
+.fields label.key > span em { color: var(--accent); font-weight: 600; }
+.fields input[type="date"], .fields input[type="number"], .fields input[type="text"] {
+  width: 100%; padding: 9px 11px; font: inherit; font-size: 14px;
+  color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.fields input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.fields label.key input { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.fields label.check { flex-direction: row; align-items: flex-start; gap: 9px; }
+.fields label.check input { margin-top: 3px; width: 16px; height: 16px; flex: none; accent-color: var(--accent); }
+.fields label.check > span { color: var(--text); font-size: 13.5px; display: flex; flex-direction: column; gap: 2px; }
+.fields label.check > span em { margin: 0; }
+
+.pv { margin-top: 14px; padding: 11px 13px; border-radius: 8px; font-size: 13px; line-height: 1.55; }
+.pv.ok { background: var(--ok-soft); color: var(--ok); }
+.pv.warn { background: var(--soon-soft); color: var(--soon); }
+.pv b { font-family: var(--mono); }
+.pv .pvnote { margin-top: 6px; opacity: .9; }
+
+.jsonout {
+  margin: 14px 0 0; padding: 12px; max-height: 220px; overflow: auto;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
+  direction: ltr; text-align: left; white-space: pre;
+}
+
+.sheetfoot { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.btn {
+  all: unset; box-sizing: border-box; cursor: pointer; text-align: center;
+  padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+}
+.btn:hover { background: var(--border); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn.off { opacity: .45; pointer-events: none; }
+.btn:disabled { opacity: .45; cursor: default; }
+.sheetnote { margin: 10px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.6; }
+.sheetnote code { font-family: var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; direction: ltr; display: inline-block; }

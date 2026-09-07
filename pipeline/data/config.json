@@ -14,5 +14,12 @@
       }
     ],
     "price_source": "מחיר מרבי לבנזין 95 אוקטן, שירות עצמי, עדכון משרד האנרגיה."
+  },
+  "repo": {
+    "owner": "shay011999-design",
+    "name": "timetrack-app",
+    "branch": "main",
+    "fuel_dir": "pipeline/data/fuel",
+    "_comment": "משמש את טופס הוספת התדלוק בדשבורד, כדי לבנות קישור לקומיט ב-GitHub."
   }
 }

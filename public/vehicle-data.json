@@ -9,6 +9,13 @@
     "current_odometer": 153261,
     "odometer_as_of": "2025-11-03"
   },
+  "repo": {
+    "owner": "shay011999-design",
+    "name": "timetrack-app",
+    "branch": "main",
+    "fuel_dir": "pipeline/data/fuel",
+    "_comment": "משמש את טופס הוספת התדלוק בדשבורד, כדי לבנות קישור לקומיט ב-GitHub."
+  },
   "plan": {
     "km": 15000,
     "months": 12
@@ -123,6 +130,10 @@
     "fillup_count": 2,
     "km_per_year": 10422,
     "fillups_without_odometer": 1,
+    "plausible_l_per_100km": [
+      4.0,
+      20.0
+    ],
     "fillups": [
       {
         "date": "2026-07-24",
