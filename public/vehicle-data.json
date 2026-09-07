@@ -113,6 +113,30 @@
     "covers_to": "2025-11-03",
     "note": "מבוסס רק על ביקורים עם חשבונית. שנות הליסינג ללא תמחור."
   },
+  "fuel": {
+    "fuel_type": "95",
+    "price_per_litre": 7.75,
+    "price_source": "מחיר מרבי לבנזין 95 אוקטן, שירות עצמי, עדכון משרד האנרגיה.",
+    "fillup_count": 0,
+    "km_per_year": 8410,
+    "basis": "estimated",
+    "consumption_l_per_100km": 6.5,
+    "consumption_km_per_litre": 15.38,
+    "consumption_source": "אומדן עולם-אמיתי לאוקטביה 1.0 TSI אוטומט. הנתון הרשמי (מחזור מעבדה) הוא 4.8 ל/100 ק\"מ ומוערך בחסר בנהיגה אמיתית. ברגע שיוזנו תדלוקים ב-data/fuel, הצריכה נמדדת בפועל והערך הזה כבר לא בשימוש.",
+    "cost_per_km": 0.504,
+    "cost_per_year": 4239,
+    "cost_per_month": 353,
+    "litres_per_year": 547
+  },
+  "running_costs": {
+    "fuel_per_km": 0.504,
+    "maintenance_per_km": 0.088,
+    "basis": "estimated",
+    "total_per_km": 0.592,
+    "fuel_share_pct": 85,
+    "total_per_year": 4979,
+    "total_per_month": 415
+  },
   "intervals": [
     {
       "from_date": "2018-10-21",
