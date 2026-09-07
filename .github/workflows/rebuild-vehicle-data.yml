@@ -1,0 +1,62 @@
+name: Rebuild vehicle data
+
+# Regenerates public/vehicle-data.json from the source documents, so adding a
+# service PDF, a fuel receipt, or an odometer reading updates the dashboard
+# without anyone running the pipeline by hand.
+#
+# The path filter is also the loop guard: this workflow reacts to changes under
+# pipeline/, and only ever commits public/vehicle-data.json, so its own push
+# cannot re-trigger it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/**"
+      - ".github/workflows/rebuild-vehicle-data.yml"
+  # The forecast is relative to today — "overdue by N days", the estimated
+  # odometer — so it is refreshed weekly even when no new document arrives.
+  schedule:
+    - cron: "0 4 * * 1"        # Mondays 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rebuild-vehicle-data
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pipeline dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      # A malformed record should fail here, loudly, rather than silently
+      # producing a dashboard full of wrong numbers.
+      - name: Run tests
+        run: python -m pytest pipeline/tests/ -q
+
+      - name: Rebuild dataset
+        working-directory: pipeline
+        run: python -m vehicle_maintenance.build
+
+      - name: Commit if changed
+        run: |
+          git config user.name "vehicle-data-bot"
+          git config user.email "vehicle-data-bot@users.noreply.github.com"
+          git add public/vehicle-data.json
+          if git diff --cached --quiet; then
+            echo "vehicle-data.json unchanged — nothing to commit."
+          else
+            git commit -m "chore: rebuild vehicle data from source documents"
+            git push
+          fi

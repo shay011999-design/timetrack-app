@@ -10,6 +10,16 @@ python -m vehicle_maintenance.build          # -> ../public/vehicle-data.json
 python -m pytest tests/ -q
 ```
 
+## בנייה אוטומטית
+
+ב-`main` הפייפליין רץ מעצמו על כל שינוי תחת `pipeline/`
+(`.github/workflows/rebuild-vehicle-data.yml`), מריץ את הטסטים, בונה מחדש את
+`public/vehicle-data.json` ודוחף אותו. אין צורך להריץ ידנית כדי שהדשבורד
+יתעדכן — אבל כן כדאי, כדי לראות אזהרות לפני שדוחפים.
+
+הטסטים רצים לפני הבנייה בכוונה: רשומה פגומה תפיל את הריצה בקול, במקום לייצר
+דשבורד מלא במספרים שגויים.
+
 ## הוספת מסמכים
 
 1. שמרו את ה-PDF ב-`data/pdfs/`.
