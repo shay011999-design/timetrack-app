@@ -201,6 +201,7 @@ section > h2 .basis {
 }
 section > h2 .basis.measured { background: var(--ok-soft); color: var(--ok); }
 section > h2 .basis.estimated { background: var(--soon-soft); color: var(--soon); }
+section > h2 .basis.provisional { background: var(--accent-soft); color: var(--accent); }
 
 .split { margin-top: 12px; padding: 15px 16px; }
 .splittop { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; font-size: 14px; }

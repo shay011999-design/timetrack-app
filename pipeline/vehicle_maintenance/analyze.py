@@ -41,6 +41,21 @@ RECENT_WINDOW_MIN = 2
 
 
 @dataclass
+class Reading:
+    """One dated odometer observation, from any source.
+
+    Services are sparse — a year apart once the car left the lease — so a rate
+    derived from them alone goes stale between them. A fuel receipt carries an
+    odometer too, and a recent one anchors the estimate far better than
+    extrapolating twelve months from the last garage visit.
+    """
+
+    date: date
+    odometer: int
+    source: str = "service"
+
+
+@dataclass
 class Interval:
     """The gap between one scheduled service and the next."""
 
@@ -129,6 +144,54 @@ def _intervals(services: list[Visit]) -> list[Interval]:
         for a, b in zip(services, services[1:])
         if b.odometer > a.odometer
     ]
+
+
+def _readings(visits: list[Visit], extra: list[Reading] | None = None) -> list[Reading]:
+    """Every odometer observation we hold, oldest first, de-duplicated."""
+    rows = [
+        Reading(v.date, v.odometer, "service" if v.kind == SERVICE else v.kind)
+        for v in visits if v.odometer
+    ]
+    rows += list(extra or [])
+    seen: set[tuple[date, int]] = set()
+    out: list[Reading] = []
+    for r in sorted(rows, key=lambda r: (r.date, r.odometer)):
+        if (r.date, r.odometer) in seen:
+            continue
+        seen.add((r.date, r.odometer))
+        out.append(r)
+    return out
+
+
+def _usage_from_readings(readings: list[Reading], today: date) -> float | None:
+    """Kilometres per year, measured across the trailing window's endpoints.
+
+    Endpoints rather than a sum of pairs: the leasing report repeats the last
+    known odometer on follow-up visits, which would contribute runs of zero-km
+    steps and drag the rate down.
+    """
+    if len(readings) < 2:
+        return None
+    cutoff = today - timedelta(days=RECENT_WINDOW_DAYS)
+    window = [r for r in readings if r.date >= cutoff]
+    if len(window) < 2:
+        window = readings[-2:]
+    first, last = window[0], window[-1]
+    days = (last.date - first.date).days
+    if days <= 0 or last.odometer <= first.odometer:
+        return None
+    return (last.odometer - first.odometer) / (days / 365.25)
+
+
+def _estimated_odometer(readings: list[Reading], rate: float | None, today: date) -> int | None:
+    """Today's odometer, extrapolated from the most recent reading of any kind."""
+    if not readings:
+        return None
+    last = readings[-1]
+    if rate is None:
+        return last.odometer
+    elapsed = (today - last.date).days
+    return round(last.odometer + rate * elapsed / 365.25)
 
 
 def _recent_intervals(intervals: list[Interval], today: date) -> list[Interval]:
@@ -227,11 +290,14 @@ def _forecast(
     plan_km: int,
     plan_months: int,
     today: date,
+    rate: float | None = None,
+    odometer_today: int | None = None,
 ) -> Forecast:
     if not services:
         return Forecast()
     last = services[-1]
-    rate = _usage_km_per_year(intervals, today)
+    if rate is None:
+        rate = _usage_km_per_year(intervals, today)
 
     # Predict on the owner's own recent rhythm when it is tighter than the
     # manufacturer plan — that is what they will actually do next.
@@ -249,11 +315,15 @@ def _forecast(
         days_by_km = (basis_km / rate) * 365.25
         by_km = last.date + timedelta(days=days_by_km)
         f.due_date = min(by_km, by_time)
-        elapsed = (today - last.date).days
-        f.estimated_odometer_today = round(last.odometer + rate * elapsed / 365.25)
+        f.estimated_odometer_today = (
+            odometer_today
+            if odometer_today is not None
+            else round(last.odometer + rate * (today - last.date).days / 365.25)
+        )
         f.km_remaining = f.due_km - f.estimated_odometer_today
     else:
         f.due_date = by_time
+        f.estimated_odometer_today = odometer_today
 
     f.days_remaining = (f.due_date - today).days if f.due_date else None
     return f
@@ -267,16 +337,29 @@ def _alerts(
     visits: list[Visit],
     plan_km: int,
     today: date,
+    timeline: list[Reading] | None = None,
 ) -> list[Alert]:
     alerts: list[Alert] = []
 
+    # A recent real reading makes "overdue" a fact rather than a projection,
+    # and the alert should say which of the two it is.
+    latest = timeline[-1] if timeline else None
+    fresh = latest is not None and (today - latest.date).days <= 60
+    basis = (
+        f"מד האוץ נקרא {latest.odometer:,} ק\"מ ב-{latest.date:%d/%m/%Y}"
+        if fresh else "לפי קצב הנסיעה הנוכחי"
+    )
+
     if forecast.days_remaining is not None:
         if forecast.days_remaining <= 0:
+            over_km = (
+                f", ועברת אותו בכ-{abs(forecast.km_remaining):,} ק\"מ"
+                if forecast.km_remaining and forecast.km_remaining < 0 else ""
+            )
             alerts.append(Alert(
                 "due", "הטיפול הבא בפיגור",
-                f"לפי קצב הנסיעה הנוכחי הטיפול היה אמור להתבצע לפני "
-                f"{abs(forecast.days_remaining)} ימים"
-                + (f", בערך ב-{forecast.due_km:,} ק\"מ" if forecast.due_km else "") + ".",
+                f"{basis}. הטיפול היה אמור להתבצע ב-{forecast.due_km:,} ק\"מ"
+                f" (לפני {abs(forecast.days_remaining)} ימים){over_km}.",
             ))
         elif forecast.days_remaining <= 60:
             alerts.append(Alert(
@@ -329,11 +412,21 @@ def analyze(
     today: date | None = None,
     plan_km: int = DEFAULT_PLAN_KM,
     plan_months: int = DEFAULT_PLAN_MONTHS,
+    readings: list[Reading] | None = None,
 ) -> Analysis:
     today = today or date.today()
     services = _services(visits)
     intervals = _intervals(services)
-    forecast = _forecast(services, intervals, plan_km, plan_months, today)
+
+    # Services plus any other dated odometer observation (fuel receipts).
+    timeline = _readings(visits, readings)
+    rate = _usage_from_readings(timeline, today) or _usage_km_per_year(intervals, today)
+    odo_today = _estimated_odometer(timeline, rate, today)
+
+    forecast = _forecast(
+        services, intervals, plan_km, plan_months, today,
+        rate=rate, odometer_today=odo_today,
+    )
 
     odo_today = forecast.estimated_odometer_today or vehicle.current_odometer
     wear = _wear_status(visits, odo_today, today)
@@ -356,7 +449,10 @@ def analyze(
         "mean_interval_km": round(sum(i.km for i in intervals) / len(intervals)) if intervals else None,
         "median_interval_days": round(median([i.days for i in intervals])) if intervals else None,
         "recent_interval_km": round(median([i.km for i in _recent_intervals(intervals, today)])) if intervals else None,
-        "km_per_year_recent": round(_usage_km_per_year(intervals, today)) if intervals else None,
+        "km_per_year_recent": round(rate) if rate else None,
+        "latest_reading_date": timeline[-1].date.isoformat() if timeline else None,
+        "latest_reading_odometer": timeline[-1].odometer if timeline else None,
+        "latest_reading_source": timeline[-1].source if timeline else None,
         "km_per_year_lifetime": round(lifetime_rate) if lifetime_rate else None,
         "adherence_pct": (
             round(100 * sum(1 for i in intervals if i.km <= plan_km) / len(intervals))
@@ -374,7 +470,9 @@ def analyze(
         plan_km=plan_km,
         plan_months=plan_months,
         forecast=forecast,
-        alerts=_alerts(services, intervals, forecast, wear, visits, plan_km, today),
+        alerts=_alerts(
+            services, intervals, forecast, wear, visits, plan_km, today, timeline
+        ),
         stats=stats,
         wear=wear,
         costs=_costs(visits, intervals),

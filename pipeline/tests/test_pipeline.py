@@ -151,3 +151,66 @@ def test_adherence_counts_only_real_intervals(analysis):
     pct = analysis.stats["adherence_pct"]
     within = sum(1 for i in analysis.intervals if i.km <= analysis.plan_km)
     assert pct == round(100 * within / len(analysis.intervals))
+
+
+# ── odometer readings from outside the service history ───────────────────────
+
+def test_fuel_reading_supersedes_extrapolation(result):
+    """A fill-up records the odometer far more recently than the last service.
+
+    Without it the estimate is extrapolated a year forward from the last
+    garage visit, which is how the overdue service was missed.
+    """
+    from vehicle_maintenance.analyze import Reading
+
+    without = analyze(result.vehicle, result.visits, today=TODAY)
+    with_fill = analyze(
+        result.vehicle, result.visits, today=TODAY,
+        readings=[Reading(date(2026, 9, 2), 162884, "fillup")],
+    )
+    assert with_fill.stats["estimated_odometer_today"] > without.stats["estimated_odometer_today"]
+    assert with_fill.stats["latest_reading_source"] == "fillup"
+    assert with_fill.stats["latest_reading_odometer"] == 162884
+
+
+def test_reading_moves_the_service_from_due_soon_to_overdue(result):
+    from vehicle_maintenance.analyze import Reading
+
+    a = analyze(
+        result.vehicle, result.visits, today=TODAY,
+        readings=[Reading(date(2026, 9, 2), 162884, "fillup")],
+    )
+    assert a.forecast.km_remaining < 0
+    assert any(al.level == "due" for al in a.alerts)
+
+
+def test_overdue_alert_cites_the_real_reading(result):
+    from vehicle_maintenance.analyze import Reading
+
+    a = analyze(
+        result.vehicle, result.visits, today=TODAY,
+        readings=[Reading(date(2026, 9, 2), 162884, "fillup")],
+    )
+    due = next(al for al in a.alerts if al.level == "due")
+    assert "162,884" in due.detail          # states the measurement, not a guess
+    assert "02/09/2026" in due.detail
+
+
+def test_stale_reading_does_not_claim_to_be_measured(result):
+    """An old reading is still useful for the rate, but the alert must not
+    present a months-old number as if it were current."""
+    from vehicle_maintenance.analyze import Reading
+
+    a = analyze(
+        result.vehicle, result.visits, today=date(2027, 6, 1),
+        readings=[Reading(date(2026, 9, 2), 162884, "fillup")],
+    )
+    due = [al for al in a.alerts if al.level == "due"]
+    assert due and "162,884" not in due[0].detail
+
+
+def test_repeated_odometer_does_not_drag_the_rate_down(result):
+    """The leasing report repeats the last known odometer on follow-up visits;
+    the rate is taken across window endpoints so those cannot dilute it."""
+    a = analyze(result.vehicle, result.visits, today=TODAY)
+    assert a.stats["km_per_year_recent"] > 5_000

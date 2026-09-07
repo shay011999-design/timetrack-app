@@ -14,8 +14,12 @@ export default function Fuel({ fuel, running }) {
     <section>
       <h2>
         דלק ועלות אחזקה
-        <span className={`basis ${fuel.basis}`}>
-          {measured ? `נמדד מ-${fuel.fillup_count} תדלוקים` : "אומדן"}
+        <span className={`basis ${fuel.low_confidence ? "provisional" : fuel.basis}`}>
+          {!measured
+            ? "אומדן"
+            : fuel.tanks_measured === 1
+              ? "נמדד ממיכל אחד — ארעי"
+              : `נמדד מ-${fuel.tanks_measured} מיכלים`}
         </span>
       </h2>
 
@@ -43,6 +47,9 @@ export default function Fuel({ fuel, running }) {
               ? `${L(fuel.consumption_km_per_litre, 1)} ק"מ לליטר`
               : null}
             {measured && fuel.measured_km ? ` · על פני ${km(fuel.measured_km)} ק"מ` : null}
+            {fuel.computer_l_per_100km
+              ? ` · מחשב הדרך: ${L(fuel.computer_l_per_100km)}`
+              : null}
           </div>
         </div>
 
@@ -114,7 +121,23 @@ export default function Fuel({ fuel, running }) {
       <div className="basisnote">
         {measured ? (
           <>
-            הצריכה נמדדת בפועל מהפרש מד האוץ בין תדלוקי מכל מלא.
+            {fuel.low_confidence ? (
+              <>
+                <b>מבוסס על מיכל אחד בלבד.</b> מספיק כדי להחליף את הניחוש, אבל לא
+                כדי לקבוע הרגל — תדלוק שלא היה מלא לגמרי, או שבוע נהיגה חריג, מזיזים
+                את המספר הרבה. אחרי שניים-שלושה מיכלים נוספים זה יתייצב.{" "}
+              </>
+            ) : null}
+            הצריכה נמדדת מהליטרים בפועל חלקי המרחק
+            {fuel.legs?.some((l) => l.basis === "trip")
+              ? " שנקרא ממחשב הדרך"
+              : " שבין תדלוקי מכל מלא"}
+            .
+            {fuel.computer_vs_pump_pct != null
+              ? ` מחשב הדרך מדווח ${L(fuel.computer_l_per_100km)} — ${
+                  fuel.computer_vs_pump_pct > 0 ? "גבוה" : "נמוך"
+                } ב-${L(Math.abs(fuel.computer_vs_pump_pct), 1)}% מהמדידה במשאבה.`
+              : ""}
             {fuel.recorded_spend
               ? ` הוצאה מתועדת: ${money(fuel.recorded_spend)}.`
               : ""}

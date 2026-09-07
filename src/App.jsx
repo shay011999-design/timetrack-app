@@ -56,8 +56,11 @@ export default function App() {
           <div>
             <span className="k">מד אוץ אחרון מתועד</span>
             <span className="v">
-              {km(vehicle.current_odometer)}{" "}
-              <small>ק"מ · {dateHe(vehicle.odometer_as_of)}</small>
+              {km(stats.latest_reading_odometer ?? vehicle.current_odometer)}{" "}
+              <small>
+                ק"מ · {dateHe(stats.latest_reading_date ?? vehicle.odometer_as_of)}
+                {stats.latest_reading_source === "fillup" ? " · מתדלוק" : ""}
+              </small>
             </span>
           </div>
           <div>

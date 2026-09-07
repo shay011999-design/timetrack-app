@@ -12,7 +12,7 @@ from datetime import date
 from pathlib import Path
 
 from . import fuel as fuel_mod
-from .analyze import Analysis, analyze
+from .analyze import Analysis, Reading, analyze
 from .load import load
 
 HERE = Path(__file__).resolve().parent.parent
@@ -72,13 +72,21 @@ def main(argv: list[str] | None = None) -> int:
 
     result = load(args.pdfs, args.manual)
     today = date.fromisoformat(args.today) if args.today else date.today()
-    analysis = analyze(
-        result.vehicle, result.visits,
-        today=today, plan_km=args.plan_km, plan_months=args.plan_months,
-    )
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     fillups = fuel_mod.load_fillups(args.fuel)
+    fuel_mod.price_fillups(fillups, config.get("fuel", {}))
+
+    # Fuel receipts carry odometer readings, and they are usually far fresher
+    # than the last garage visit, so they feed the usage rate and the forecast.
+    analysis = analyze(
+        result.vehicle, result.visits,
+        today=today, plan_km=args.plan_km, plan_months=args.plan_months,
+        readings=[
+            Reading(f.date, f.odometer, "fillup") for f in fillups if f.odometer
+        ],
+    )
+
     fuel = fuel_mod.analyse(
         fillups, config.get("fuel", {}),
         km_per_year=analysis.stats.get("km_per_year_recent"), today=today,

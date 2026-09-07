@@ -24,6 +24,9 @@ from typing import Any
 MEASURED = "measured"
 ESTIMATED = "estimated"
 
+# Below this many measured tanks the figure is reported as provisional.
+MIN_TANKS_FOR_CONFIDENCE = 3
+
 
 @dataclass
 class Fillup:
@@ -34,8 +37,16 @@ class Fillup:
     total: float | None = None
     station: str | None = None
     full_tank: bool = True
+    # Distance since the previous fill, read off the trip computer. With it a
+    # single receipt closes a consumption window on its own — no second record
+    # needed — which matters because the first fill anyone logs otherwise
+    # measures nothing.
+    km_since_last_fill: int | None = None
+    # What the car itself reported, kept only to compare against the pump.
+    computer_l_per_100km: float | None = None
     document: str | None = None
     source: str = "manual"
+    notes: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Receipts vary in which two of the three numbers they print; the third
@@ -55,13 +66,16 @@ class Fillup:
 
 @dataclass
 class Leg:
-    """Distance covered on one full tank, between two full-tank fill-ups."""
+    """Distance covered on one full tank."""
 
     from_date: date
     to_date: date
     km: int
     litres: float
     cost: float
+    # "odometer" when measured between two logged fills, "trip" when the
+    # distance came from the car's own since-refuelling counter.
+    basis: str = "odometer"
 
     @property
     def l_per_100km(self) -> float:
@@ -70,6 +84,20 @@ class Leg:
     @property
     def km_per_litre(self) -> float:
         return self.km / self.litres
+
+
+def price_fillups(fillups: list[Fillup], config: dict) -> None:
+    """Fill in the pump price on receipts that did not record one.
+
+    A litres-only entry still carries the odometer reading, which is the most
+    valuable part; pricing it from the history makes it count toward spend too.
+    """
+    for f in fillups:
+        if f.price_per_litre is None and f.litres:
+            price = price_at(config, f.date)
+            if price:
+                f.price_per_litre = price
+                f.total = round(f.litres * price, 2)
 
 
 def load_fillups(fuel_dir: str | Path) -> list[Fillup]:
@@ -106,6 +134,8 @@ def _legs(fillups: list[Fillup]) -> list[Leg]:
     """
     usable = [f for f in fillups if f.odometer and f.litres]
     legs: list[Leg] = []
+    closed: set[int] = set()   # ids of fills already ending a leg
+
     for a, b in zip(usable, usable[1:]):
         if not (a.full_tank and b.full_tank):
             continue
@@ -115,10 +145,25 @@ def _legs(fillups: list[Fillup]) -> list[Leg]:
         legs.append(
             Leg(
                 from_date=a.date, to_date=b.date, km=km,
-                litres=b.litres, cost=b.total or 0.0,
+                litres=b.litres, cost=b.total or 0.0, basis="odometer",
             )
         )
-    return legs
+        closed.add(id(b))
+
+    # A fill the odometer chain could not close still measures a tank if the
+    # trip computer recorded the distance. The odometer pair is preferred where
+    # both exist: a trip counter can be reset mid-tank, an odometer cannot.
+    for f in fillups:
+        if id(f) in closed or not (f.full_tank and f.litres and f.km_since_last_fill):
+            continue
+        legs.append(
+            Leg(
+                from_date=f.date, to_date=f.date, km=f.km_since_last_fill,
+                litres=f.litres, cost=f.total or 0.0, basis="trip",
+            )
+        )
+
+    return sorted(legs, key=lambda l: l.to_date)
 
 
 def analyse(
@@ -145,6 +190,10 @@ def analyse(
         consumption = total_litres / total_km * 100
         result.update(
             basis=MEASURED,
+            tanks_measured=len(legs),
+            # One tank is a data point, not a habit: a single fill that was not
+            # quite full, or an unusual week of driving, moves it a long way.
+            low_confidence=len(legs) < MIN_TANKS_FOR_CONFIDENCE,
             consumption_l_per_100km=round(consumption, 2),
             consumption_km_per_litre=round(total_km / total_litres, 2),
             measured_km=total_km,
@@ -157,11 +206,13 @@ def analyse(
                     "litres": round(l.litres, 2),
                     "l_per_100km": round(l.l_per_100km, 2),
                     "cost": round(l.cost, 2),
+                    "basis": l.basis,
                 }
                 for l in legs
             ],
         )
-        # Real spend, when the receipts carry it.
+        # Real spend, when the receipts carry it. This is history; the headline
+        # cost per km below is what a kilometre costs at today's pump price.
         spend = sum(f.total for f in fillups if f.total)
         if spend:
             result["recorded_spend"] = round(spend, 2)
@@ -172,7 +223,19 @@ def analyse(
                 # rather than falling inside it.
                 in_span = sum(f.total for f in fillups[1:] if f.total)
                 result["spend_span_km"] = span
-                result["cost_per_km"] = round(in_span / span, 3)
+                result["historical_cost_per_km"] = round(in_span / span, 3)
+
+        # What the car itself reported, against what the pump actually took.
+        # A persistent gap means the trip computer is optimistic; comparing it
+        # to an estimated consumption would be comparing two guesses, so this
+        # lives in the measured branch only.
+        reported = [f.computer_l_per_100km for f in fillups if f.computer_l_per_100km]
+        if reported:
+            avg = sum(reported) / len(reported)
+            result["computer_l_per_100km"] = round(avg, 2)
+            result["computer_vs_pump_pct"] = round(
+                100 * (avg - consumption) / consumption, 1
+            )
     else:
         consumption = config.get("consumption_l_per_100km")
         result.update(
@@ -181,8 +244,12 @@ def analyse(
             consumption_km_per_litre=round(100 / consumption, 2) if consumption else None,
             consumption_source=config.get("consumption_source"),
         )
-        if consumption and price_now:
-            result["cost_per_km"] = round(consumption / 100 * price_now, 3)
+
+    # One formula for both modes, so the only thing that changes between them
+    # is whether the consumption going in was measured or guessed.
+    consumption = result.get("consumption_l_per_100km")
+    if consumption and price_now:
+        result["cost_per_km"] = round(consumption / 100 * price_now, 3)
 
     cost_per_km = result.get("cost_per_km")
     if cost_per_km and km_per_year:

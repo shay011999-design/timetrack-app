@@ -24,26 +24,29 @@
     "mean_interval_km": 13976,
     "median_interval_days": 271,
     "recent_interval_km": 8473,
-    "km_per_year_recent": 8410,
+    "km_per_year_recent": 10422,
+    "latest_reading_date": "2026-09-02",
+    "latest_reading_odometer": 162884,
+    "latest_reading_source": "fillup",
     "km_per_year_lifetime": 19863,
     "adherence_pct": 50,
-    "estimated_odometer_today": 160353,
+    "estimated_odometer_today": 163027,
     "as_of": "2026-09-07"
   },
   "forecast": {
     "due_km": 161734,
-    "due_date": "2026-11-03",
-    "km_remaining": 1381,
-    "days_remaining": 57,
+    "due_date": "2026-08-26",
+    "km_remaining": -1293,
+    "days_remaining": -12,
     "basis_km": 8473,
-    "basis_km_per_year": 8410,
-    "estimated_odometer_today": 160353
+    "basis_km_per_year": 10422,
+    "estimated_odometer_today": 163027
   },
   "alerts": [
     {
-      "level": "soon",
-      "title": "הטיפול הבא מתקרב",
-      "detail": "נותרו כ-57 ימים או כ-1,381 ק\"מ."
+      "level": "due",
+      "title": "הטיפול הבא בפיגור",
+      "detail": "מד האוץ נקרא 162,884 ק\"מ ב-02/09/2026. הטיפול היה אמור להתבצע ב-161,734 ק\"מ (לפני 12 ימים), ועברת אותו בכ-1,293 ק\"מ."
     },
     {
       "level": "info",
@@ -65,8 +68,8 @@
       "last_date": "2023-03-06",
       "last_odometer": 118328,
       "last_description": "הח' רצועת תזמון",
-      "km_since": 42025,
-      "km_to_go": 77975,
+      "km_since": 44699,
+      "km_to_go": 75301,
       "months_since": 42,
       "months_to_go": 42
     },
@@ -78,8 +81,8 @@
       "last_date": "2023-03-06",
       "last_odometer": 118328,
       "last_description": "החלפת צלחות קדמיות; הח' דיסקיות קדמיות",
-      "km_since": 42025,
-      "km_to_go": 27975,
+      "km_since": 44699,
+      "km_to_go": 25301,
       "months_since": 42,
       "months_to_go": 30
     },
@@ -91,8 +94,8 @@
       "last_date": "2023-03-06",
       "last_odometer": 118328,
       "last_description": "הח' עקב בלאי / שחיקה",
-      "km_since": 42025,
-      "km_to_go": 17975,
+      "km_since": 44699,
+      "km_to_go": 15301,
       "months_since": 42,
       "months_to_go": 30
     }
@@ -117,25 +120,42 @@
     "fuel_type": "95",
     "price_per_litre": 7.75,
     "price_source": "מחיר מרבי לבנזין 95 אוקטן, שירות עצמי, עדכון משרד האנרגיה.",
-    "fillup_count": 0,
-    "km_per_year": 8410,
-    "basis": "estimated",
-    "consumption_l_per_100km": 6.5,
-    "consumption_km_per_litre": 15.38,
-    "consumption_source": "אומדן עולם-אמיתי לאוקטביה 1.0 TSI אוטומט. הנתון הרשמי (מחזור מעבדה) הוא 4.8 ל/100 ק\"מ ומוערך בחסר בנהיגה אמיתית. ברגע שיוזנו תדלוקים ב-data/fuel, הצריכה נמדדת בפועל והערך הזה כבר לא בשימוש.",
-    "cost_per_km": 0.504,
-    "cost_per_year": 4239,
-    "cost_per_month": 353,
-    "litres_per_year": 547
+    "fillup_count": 1,
+    "km_per_year": 10422,
+    "basis": "measured",
+    "tanks_measured": 1,
+    "low_confidence": true,
+    "consumption_l_per_100km": 13.08,
+    "consumption_km_per_litre": 7.65,
+    "measured_km": 329,
+    "measured_litres": 43.03,
+    "legs": [
+      {
+        "from_date": "2026-09-02",
+        "to_date": "2026-09-02",
+        "km": 329,
+        "litres": 43.03,
+        "l_per_100km": 13.08,
+        "cost": 355.02,
+        "basis": "trip"
+      }
+    ],
+    "recorded_spend": 355.02,
+    "computer_l_per_100km": 13.4,
+    "computer_vs_pump_pct": 2.4,
+    "cost_per_km": 1.014,
+    "cost_per_year": 10568,
+    "cost_per_month": 881,
+    "litres_per_year": 1363
   },
   "running_costs": {
-    "fuel_per_km": 0.504,
+    "fuel_per_km": 1.014,
     "maintenance_per_km": 0.088,
-    "basis": "estimated",
-    "total_per_km": 0.592,
-    "fuel_share_pct": 85,
-    "total_per_year": 4979,
-    "total_per_month": 415
+    "basis": "measured",
+    "total_per_km": 1.102,
+    "fuel_share_pct": 92,
+    "total_per_year": 11485,
+    "total_per_month": 957
   },
   "intervals": [
     {
