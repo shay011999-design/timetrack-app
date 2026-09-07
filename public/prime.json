@@ -3,8 +3,8 @@
   "prime": 4.75,
   "boiRate": 3.25,
   "boiRateRaw": 3.25,
-  "effectiveDate": "2026-09-03",
-  "asOf": "2026-09-03",
+  "effectiveDate": "2026-09-07",
+  "asOf": "2026-09-07",
   "seriesCode": "MNT_RIB_BOI_D",
   "seriesName": null,
   "source": "Bank of Israel — BR dataflow (Fusion Edge Server SDMX)",
@@ -13,31 +13,31 @@
       "code": "MNT_RIB_BOI_D",
       "name": null,
       "value": 3.25,
-      "date": "2026-09-03"
-    },
-    {
-      "code": "MNT_SHIR_D",
-      "name": null,
-      "value": 3.25,
-      "date": "2026-09-03"
-    },
-    {
-      "code": "MNT_RIB_EFYB_D",
-      "name": null,
-      "value": 3.56179710572,
-      "date": "2026-09-02"
+      "date": "2026-09-07"
     },
     {
       "code": "MNT_WIN_LN_D",
       "name": null,
       "value": 3.75,
-      "date": "2026-09-03"
+      "date": "2026-09-07"
     },
     {
       "code": "MNT_WIN_DEP_D",
       "name": null,
       "value": 2.75,
-      "date": "2026-09-03"
+      "date": "2026-09-07"
+    },
+    {
+      "code": "MNT_SHIR_D",
+      "name": null,
+      "value": 3.25,
+      "date": "2026-09-07"
+    },
+    {
+      "code": "MNT_RIB_EFYB_D",
+      "name": null,
+      "value": 3.30323985186489,
+      "date": "2026-09-06"
     }
   ]
 }
