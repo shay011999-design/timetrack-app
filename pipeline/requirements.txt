@@ -1,5 +1,10 @@
 # Build + tests. Deliberately does not include the OCR extras: the build must
 # stay offline, free and deterministic.
-pypdf>=6.0
+#
+# The [image] extra pulls Pillow, which pypdf needs to pull page images out of
+# a scanned PDF. The build itself never does that — only the OCR step and the
+# test covering it do — but a bare `pypdf` makes that test fail on a clean
+# machine while passing anywhere Pillow happens to be installed already.
+pypdf[image]>=6.0
 pydantic>=2.0
 pytest>=8.0
