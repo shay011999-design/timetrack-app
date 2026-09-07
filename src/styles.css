@@ -294,3 +294,12 @@ section > h2 .basis.provisional { background: var(--accent-soft); color: var(--a
 .btn:disabled { opacity: .45; cursor: default; }
 .sheetnote { margin: 10px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.6; }
 .sheetnote code { font-family: var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; direction: ltr; display: inline-block; }
+
+/* Upload hands off to GitHub rather than posting anywhere of ours, so it reads
+   as a secondary action next to the primary in-page one. */
+.addbtn.ghost {
+  background: transparent; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  text-decoration: none;
+}
+.addbtn.ghost:hover { background: var(--accent-soft); filter: none; }

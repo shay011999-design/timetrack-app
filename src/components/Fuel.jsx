@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AddFillup from "./AddFillup.jsx";
+import UploadDoc from "./UploadDoc.jsx";
 import { km, money } from "../format.js";
 
 const L = (n, digits = 2) =>
@@ -27,6 +28,12 @@ export default function Fuel({ fuel, running, repo }) {
         <button className="addbtn" onClick={() => setAdding((v) => !v)}>
           {adding ? "ביטול" : "+ תדלוק"}
         </button>
+        <UploadDoc
+          repo={repo}
+          dir={repo?.fuel_dir ?? "pipeline/data/fuel"}
+          label="העלאת קבלה"
+          hint="גוררים קובץ קבלה; קבלה עם שכבת טקסט נקראת אוטומטית"
+        />
       </h2>
 
       {adding && (

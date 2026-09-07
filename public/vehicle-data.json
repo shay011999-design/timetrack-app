@@ -14,7 +14,8 @@
     "name": "timetrack-app",
     "branch": "main",
     "fuel_dir": "pipeline/data/fuel",
-    "_comment": "משמש את טופס הוספת התדלוק בדשבורד, כדי לבנות קישור לקומיט ב-GitHub."
+    "_comment": "משמש את טופס הוספת התדלוק בדשבורד, כדי לבנות קישור לקומיט ב-GitHub.",
+    "docs_dir": "pipeline/data/pdfs"
   },
   "plan": {
     "km": 15000,

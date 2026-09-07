@@ -1,4 +1,5 @@
 import { useState } from "react";
+import UploadDoc from "./UploadDoc.jsx";
 import { km, money, dateHe, SYSTEM_LABELS, KIND_LABELS } from "../format.js";
 
 function summarise(visit) {
@@ -92,12 +93,20 @@ function Visit({ visit }) {
   );
 }
 
-export default function Timeline({ visits }) {
+export default function Timeline({ visits, repo }) {
   // Newest first: the recent history is what gets checked.
   const ordered = [...visits].sort((a, b) => b.date.localeCompare(a.date));
   return (
     <section>
-      <h2>היסטוריית ביקורים ({visits.length})</h2>
+      <h2>
+        היסטוריית ביקורים ({visits.length})
+        <UploadDoc
+          repo={repo}
+          dir={repo?.docs_dir ?? "pipeline/data/pdfs"}
+          label="העלאת חשבונית"
+          hint="חשבונית מוסך או דו״ח טיפולים; מסמך עם שכבת טקסט נקרא אוטומטית"
+        />
+      </h2>
       <div className="timeline">
         {ordered.map((v, i) => (
           <Visit visit={v} key={`${v.date}-${i}`} />

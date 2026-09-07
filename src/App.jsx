@@ -88,7 +88,7 @@ export default function App() {
       <Fuel fuel={fuel} running={running} repo={repo} />
       <IntervalChart intervals={intervals} planKm={plan.km} />
       <Wear wear={wear} />
-      <Timeline visits={visits} />
+      <Timeline visits={visits} repo={repo} />
 
       <footer className="foot">
         <div>
